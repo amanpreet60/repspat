@@ -1,0 +1,54 @@
+# =====================
+# Python artifacts
+# =====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# =====================
+# Virtual environments
+# =====================
+.venv/
+venv/
+env/
+ENV/
+
+# =====================
+# Build / packaging
+# =====================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =====================
+# Test / coverage
+# =====================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =====================
+# Jupyter / IPython
+# =====================
+.ipynb_checkpoints/
+.profile_default/
+
+# =====================
+# IDEs / Editors
+# =====================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =====================
+# OS files
+# =====================
+.DS_Store
+Thumbs.db
+
+# ======
+
+03_TNBC_2018_spe.h5ad
