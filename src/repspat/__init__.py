@@ -7,7 +7,7 @@ from .data import SampleData
 from .clustering import custom_silhouette, create_blocks, spatial_silhouette_analysis, spatial_constrained_hac
 
 # MMD functions
-from .mmd import two_sample_mmd, multiple_comparison, pairwise_results_to_matrix
+from .mmd import two_sample_mmd, multiple_comparison
 
 from .visualization import plot_spatial_clusters, pairwise_results_to_matrix
 
