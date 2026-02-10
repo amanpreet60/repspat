@@ -82,7 +82,6 @@ def custom_silhouette(clusters, dist_matrix, adjacency):
             b = min(dist.loc[i, clusters == n].mean() for n in neighs)       # min mean distance to neighbors
         else:
             b = np.inf
-            print("hi")  # no neighbors
         silhouettes.append((b - a) / max(a, b) if max(a, b) else 0.0)        # silhouette score for i
 
     return np.array(silhouettes)  # return all silhouette scores as NumPy array
@@ -104,3 +103,32 @@ def create_blocks(feature_mat: pd.DataFrame, num_features: int, knn: int) -> pd.
 
     # Combine and restore original order
     return pd.concat(blk_data).sort_values('idx').drop(columns=['idx'])
+
+import pandas as pd
+import squidpy as sq
+from sklearn.cluster import AgglomerativeClustering
+
+
+def spatial_constrained_hac(adata, feature_df: pd.DataFrame, n_clusters: int = 7, 
+                            n_neighs: int = 8, coord_type: str = "generic", delaunay: bool = False
+):
+    sq.gr.spatial_neighbors(
+        adata,
+        n_neighs=n_neighs,
+        coord_type=coord_type,
+        delaunay=delaunay,
+    )
+
+    connectivity = adata.obsp["spatial_connectivities"].tocsr()
+
+    model = AgglomerativeClustering(
+        n_clusters=n_clusters,
+        linkage="ward",
+        connectivity=connectivity,
+        compute_distances=True,
+    )
+
+    labels = model.fit_predict(adata.X) + 1
+    feature_df['region'] = pd.Series(labels, index=feature_df.index).astype("category")
+
+    return labels, feature_df, model

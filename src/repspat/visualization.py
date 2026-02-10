@@ -1,6 +1,27 @@
 import pandas as pd
 import networkx as nx
 
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_spatial_clusters(x, y, labels, figsize=(4, 4), point_size=10, alpha=1.0,
+                          title="Spatial Plot of Cells with Cluster Colors", show_legend=True):
+    x, y, labels = np.asarray(x), np.asarray(y), np.asarray(labels)
+    fig, ax = plt.subplots(figsize=figsize)
+
+    for cid in np.unique(labels):
+        m = labels == cid
+        ax.scatter(x[m], y[m], s=point_size, alpha=alpha, label=f"Cluster {cid + 1}")
+
+    ax.set(xlabel="X coordinate", ylabel="Y coordinate", title=title)
+    ax.grid(False)
+
+    if show_legend:
+        ax.legend(title="Clusters", markerscale=1.5,
+                  bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0)
+
+    return fig, ax
+
 
 def pairwise_results_to_matrix(df, plot=True):
     # Link if adjusted p-value >= 0.05
