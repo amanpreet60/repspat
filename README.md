@@ -13,6 +13,10 @@ pip install repspat-0.1.0-py3-none-any.whl
 download a.ipynb file from github to the same local folder
 https://github.com/amanpreet60/repspat/blob/main/a.ipynb
 
+download the datset from the release folder
+https://github.com/amanpreet60/repspat/releases/download/Initial/03_TNBC_2018_spe.h5ad
+
+
 run the file
 
 
