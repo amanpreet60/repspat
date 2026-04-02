@@ -49,6 +49,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# ======
+# =====================
+# Dataset files
+# =====================
+*.h5ad
 
-03_TNBC_2018_spe.h5ad

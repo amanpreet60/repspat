@@ -1,6 +1,5 @@
 import pandas as pd
 import scanpy as sc
-import numpy as np
 from scipy.spatial.distance import pdist, squareform
 import warnings
 

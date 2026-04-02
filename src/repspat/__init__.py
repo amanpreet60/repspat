@@ -1,4 +1,6 @@
-# src/spatialstats/__init__.py
+# src/repspat/__init__.py
+
+__version__ = "0.1.0"
 
 # Data-related
 from .data import SampleData, to_binary
