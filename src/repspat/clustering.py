@@ -1,12 +1,8 @@
 import numpy as np
 import pandas as pd
-from sklearn.cluster import KMeans
-
-import numpy as np
-import pandas as pd
 from scipy.sparse import csr_matrix
-from sklearn.cluster import AgglomerativeClustering
-import squidpy as sq  # assuming sq is installed
+from sklearn.cluster import KMeans, AgglomerativeClustering
+import squidpy as sq
 
 def spatial_silhouette_analysis(sample_data, n_neighbors_list=[6,8], n_clusters_range=range(4,9)):
     results = []
@@ -104,11 +100,6 @@ def create_blocks(feature_mat: pd.DataFrame, num_features: int, knn: int) -> pd.
     # Combine and restore original order
     return pd.concat(blk_data).sort_values('idx').drop(columns=['idx'])
 
-import pandas as pd
-import squidpy as sq
-from sklearn.cluster import AgglomerativeClustering
-
-
 def spatial_constrained_hac(adata, feature_df: pd.DataFrame, n_clusters: int = 7, 
                             n_neighs: int = 8, coord_type: str = "generic", delaunay: bool = False
 ):
@@ -128,7 +119,8 @@ def spatial_constrained_hac(adata, feature_df: pd.DataFrame, n_clusters: int = 7
         compute_distances=True,
     )
 
-    labels = model.fit_predict(adata.X) + 1
+    X = adata.X.toarray() if hasattr(adata.X, "toarray") else adata.X
+    labels = model.fit_predict(X) + 1
     feature_df['region'] = pd.Series(labels, index=feature_df.index).astype("category")
 
     return labels, feature_df, model

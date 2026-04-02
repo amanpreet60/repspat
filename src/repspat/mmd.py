@@ -47,7 +47,10 @@ def compute_perm_mmd_sq(sample1_idx, sample2_idx, dist_matrix, patient_data, ker
     blk_ids, n_permuted = [], 0
     all_blocks = subset_data["block_id"].unique()
     while n_permuted < n_size:
-        new_block = np.random.choice(np.setdiff1d(all_blocks, blk_ids), 1)[0]
+        remaining = np.setdiff1d(all_blocks, blk_ids)
+        if len(remaining) == 0:
+            break
+        new_block = np.random.choice(remaining, 1)[0]
         blk_ids.append(new_block)
         n_permuted = subset_data.loc[subset_data["block_id"].isin(blk_ids)].shape[0]
 
@@ -99,6 +102,8 @@ def multiple_comparison(patient_data, dist_matrix, kernel="Gaussian",
     
     # Adjust p-values for multiple comparisons
     method_map = {"BH": "fdr_bh", "bonferroni": "bonferroni", "holm": "holm"}
+    if adj_p not in method_map:
+        raise ValueError(f"adj_p must be one of: {list(method_map.keys())}")
     df["adj_p"] = multipletests(df["p_value"], method=method_map[adj_p])[1]
     
     return df

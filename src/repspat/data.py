@@ -22,7 +22,8 @@ class SampleData:
         adata_path=None,
         adata_obj=None,
         metric="euclidean",
-        thresholds=None
+        thresholds=None,
+        cell_type_column="mm"
     ):
         """
         Parameters
@@ -63,8 +64,8 @@ class SampleData:
         )
 
         # Cell type
-        self.cell_type = sample.obs[["mm"]].copy()
-        self.cell_type.rename(columns={"mm": "cell_type"}, inplace=True)
+        self.cell_type = sample.obs[[cell_type_column]].copy()
+        self.cell_type.rename(columns={cell_type_column: "cell_type"}, inplace=True)
 
         # Store AnnData subset
         self.sample_adata = sample

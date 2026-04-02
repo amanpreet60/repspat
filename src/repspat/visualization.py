@@ -24,7 +24,7 @@ def plot_spatial_clusters(x, y, labels, figsize=(4, 4), point_size=10, alpha=1.0
 
 
 def pairwise_results_to_matrix(df, plot=True):
-    # Link if adjusted p-value >= 0.05
+    # Link clusters that are NOT significantly different (adj_p >= 0.05 = similar spatial distributions)
     df = df.copy()
     df['link'] = (df['adj_p'] >= 0.05).astype(int)
     
@@ -42,10 +42,12 @@ def pairwise_results_to_matrix(df, plot=True):
     result_matrix = nx.to_pandas_adjacency(G, weight='weight')
     
     if plot:
+        fig, ax = plt.subplots()
         pos = nx.circular_layout(G)  # nodes in circle
         edge_labels = nx.get_edge_attributes(G, 'weight')
         nx.draw(G, pos, with_labels=True, node_color='white', edge_color='lightgrey',
-                width=2, node_size=800, font_size=12)
+                width=2, node_size=800, font_size=12, ax=ax)
         nx.draw_networkx_edge_labels(G, pos, edge_labels={k: round(v,2) for k,v in edge_labels.items()})
-    
+        plt.show()
+
     return result_matrix
