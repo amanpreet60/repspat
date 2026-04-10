@@ -1,8 +1,6 @@
 # repSpat
 
-Spatial statistics and clustering for single-cell imaging data.
-
-Built for analyzing how cell types are spatially distributed in tissue samples — things like whether two cell populations are more mixed or segregated than expected. Works with AnnData `.h5ad` files (the standard format for single-cell data).
+A Python package for detecting repeated spatial patterns in spatial omics data, tissue regions that are spatially separated but share similar underlying cell-type or biological profile distributions. Built on a nonparametric statistical inference framework that integrates constrained clustering with a block-permutation procedure using the maximum mean discrepancy (MMD) statistic, enabling formal hypothesis testing for repeated spatial domains. Works natively with AnnData .h5ad files, the standard format for single-cell and spatial omics workflows.
 
 ## Install
 
