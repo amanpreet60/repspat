@@ -11,7 +11,7 @@ def plot_spatial_clusters(x, y, labels, figsize=(4, 4), point_size=10, alpha=1.0
 
     for cid in np.unique(labels):
         m = labels == cid
-        ax.scatter(x[m], y[m], s=point_size, alpha=alpha, label=f"Cluster {cid + 1}")
+        ax.scatter(x[m], y[m], s=point_size, alpha=alpha, label=f"Cluster {cid}")
 
     ax.set(xlabel="X coordinate", ylabel="Y coordinate", title=title)
     ax.grid(False)
