@@ -55,3 +55,8 @@ Thumbs.db
 *.h5ad
 data
 
+.cache
+.r_libs
+scripts
+
+
