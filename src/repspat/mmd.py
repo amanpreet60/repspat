@@ -37,7 +37,9 @@ def compute_perm_mmd_sq(sample1_idx, sample2_idx, dist_matrix, patient_data, ker
     subset_data = patient_data.loc[list(indices[0]) + list(indices[1])].copy()
 
     # create block_id for each (region, polygon_id)
-    subset_data["block_id"] = subset_data.groupby(["region", "polygon_id"]).ngroup() + 1
+    subset_data["block_id"] = (
+        subset_data.groupby(["region", "polygon_id"], observed=False).ngroup() + 1
+    )
 
     # size of smaller cluster
     regions = subset_data["region"].unique()
