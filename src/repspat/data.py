@@ -1,5 +1,4 @@
 import pandas as pd
-import scanpy as sc
 from scipy.spatial.distance import pdist, squareform
 import warnings
 
@@ -12,7 +11,6 @@ def to_binary(column: pd.Series, marker_name: str, thresholds: dict) -> pd.Serie
     threshold = thresholds[marker_name]
     return (column >= threshold).astype(int)
 
-
 class SampleData:
     def __init__(
         self,
@@ -20,7 +18,7 @@ class SampleData:
         sample_name,
         adata_path=None,
         adata_obj=None,
-        metric="euclidean",
+        metric="jaccard",
         thresholds=None,
         cell_type_column="mm"
     ):
@@ -35,6 +33,8 @@ class SampleData:
         if adata_obj is not None:
             adata = adata_obj
         elif adata_path is not None:
+            import scanpy as sc
+
             adata = sc.read_h5ad(adata_path)
         else:
             raise ValueError("Provide either adata_path or adata_obj")

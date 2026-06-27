@@ -2,10 +2,11 @@ import pandas as pd
 import networkx as nx
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 def plot_spatial_clusters(x, y, labels, figsize=(4, 4), point_size=10, alpha=1.0,
                           title="Spatial Plot of Cells with Cluster Colors", show_legend=True):
+    import matplotlib.pyplot as plt
+
     x, y, labels = np.asarray(x), np.asarray(y), np.asarray(labels)
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -42,6 +43,8 @@ def pairwise_results_to_matrix(df, plot=True):
     result_matrix = nx.to_pandas_adjacency(G, weight='weight')
     
     if plot:
+        import matplotlib.pyplot as plt
+
         fig, ax = plt.subplots()
         pos = nx.circular_layout(G)  # nodes in circle
         edge_labels = nx.get_edge_attributes(G, 'weight')
