@@ -1,69 +1,55 @@
-# =====================
-# Python artifacts
-# =====================
+# Python caches
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 
-# =====================
 # Virtual environments
-# =====================
 .venv/
 venv/
 env/
 ENV/
 
-# =====================
-# Build / packaging
-# =====================
+# Build outputs
 build/
 dist/
 *.egg-info/
 .eggs/
 
-# =====================
-# Test / coverage
-# =====================
+# Test and coverage outputs
 .pytest_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
 
-# =====================
-# Jupyter / IPython
-# =====================
+# Jupyter and Quarto
 .ipynb_checkpoints/
 .profile_default/
+.quarto/
 
-# =====================
-# IDEs / Editors
-# =====================
+# Editors and local project files
 .vscode/
 .idea/
 *.swp
 *.swo
+.Rproj.user/
+*.Rproj
 
-# =====================
 # OS files
-# =====================
 .DS_Store
 Thumbs.db
 
-# =====================
-# Dataset files
-# =====================
+# Local data and experiments
 *.h5ad
-data
-
-.cache
-.r_libs
-scripts
-
-
-.Rproj.user
-
-anndata_notebooks/
-case_study/
+data/
 experiments/
+scripts/
 
-.quarto/
+# Local caches and R libraries
+.cache/
+.ruff_cache/
+.mypy_cache/
+.r_libs/
+.Rhistory
+.RData

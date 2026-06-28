@@ -8,12 +8,6 @@ A Python package for detecting repeated spatial patterns in spatial omics data, 
 pip install repspat
 ```
 
-For plotting helpers:
-
-```bash
-pip install "repspat[plot]"
-```
-
 ## Usage
 
 ```python
@@ -120,7 +114,7 @@ Converts a continuous marker column to binary using a threshold dict.
 ## Requirements
 
 - Python >= 3.9
-- numpy, pandas, scipy, scikit-learn, statsmodels, scanpy, squidpy >= 1.2, networkx, matplotlib
+- numpy, pandas, scipy, scikit-learn, statsmodels, scanpy, squidpy >= 1.2, matplotlib, networkx
 
 ## License
 
