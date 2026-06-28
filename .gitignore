@@ -65,3 +65,5 @@ scripts
 anndata_notebooks/
 case_study/
 experiments/
+
+.quarto/

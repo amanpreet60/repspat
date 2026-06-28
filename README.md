@@ -8,11 +8,18 @@ A Python package for detecting repeated spatial patterns in spatial omics data, 
 pip install repspat
 ```
 
+For plotting helpers:
+
+```bash
+pip install "repspat[plot]"
+```
+
 ## Usage
 
 ```python
 from repspat import SampleData, spatial_silhouette_analysis, spatial_constrained_hac
-from repspat import plot_spatial_clusters, create_blocks, multiple_comparison, pairwise_results_to_matrix
+from repspat import create_blocks, multiple_comparison
+from repspat.visualization import plot_spatial_clusters, pairwise_results_to_matrix
 ```
 
 ### Load a sample
