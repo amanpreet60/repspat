@@ -13,7 +13,11 @@ pip install repspat
 ```python
 from repspat import SampleData, spatial_silhouette_analysis, spatial_constrained_hac
 from repspat import create_blocks, multiple_comparison
-from repspat.visualization import plot_spatial_clusters, pairwise_results_to_matrix
+from repspat import (
+    pairwise_results_to_matrix,
+    plot_cluster_feature_presence,
+    plot_spatial_clusters,
+)
 ```
 
 ### Load a sample
@@ -64,6 +68,21 @@ labels, feature_df, model = spatial_constrained_hac(
 plot_spatial_clusters(data.coords_mat.centroidX, data.coords_mat.centroidY, labels=labels)
 ```
 
+### Plot each cluster's top binary features
+
+Creates one two-panel figure per cluster: a spatial highlight and the cluster's
+most prevalent binary features.
+
+```python
+cluster_figures = plot_cluster_feature_presence(
+    data.coords_mat[:, 0],
+    data.coords_mat[:, 1],
+    labels,
+    feature_df,
+    top_n=5,
+)
+```
+
 ### Run MMD tests between clusters
 
 ```python
@@ -104,6 +123,9 @@ Pairwise MMD across all cluster pairs. `adj_p` can be `"BH"`, `"bonferroni"`, or
 
 ### `plot_spatial_clusters(x, y, labels)`
 Scatter plot colored by cluster.
+
+### `plot_cluster_feature_presence(x, y, labels, feature_df, top_n)`
+Creates a spatial highlight and top binary-feature prevalence chart for every cluster.
 
 ### `pairwise_results_to_matrix(df, plot)`
 Builds an adjacency matrix and network graph from MMD results. Edges connect clusters that are not significantly different.

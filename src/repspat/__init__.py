@@ -9,7 +9,11 @@ from .clustering import (
 )
 from .mmd import two_sample_mmd, multiple_comparison
 from . import visualization
-from .visualization import pairwise_results_to_matrix, plot_spatial_clusters
+from .visualization import (
+    pairwise_results_to_matrix,
+    plot_cluster_feature_presence,
+    plot_spatial_clusters,
+)
 
 __all__ = [
     "SampleData",
@@ -22,5 +26,6 @@ __all__ = [
     "multiple_comparison",
     "visualization",
     "plot_spatial_clusters",
+    "plot_cluster_feature_presence",
     "pairwise_results_to_matrix",
 ]

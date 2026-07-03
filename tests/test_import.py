@@ -6,6 +6,7 @@ def test_package_imports_core_api():
     assert "multiple_comparison" in repspat.__all__
     assert "visualization" in repspat.__all__
     assert "plot_spatial_clusters" in repspat.__all__
+    assert "plot_cluster_feature_presence" in repspat.__all__
     assert "pairwise_results_to_matrix" in repspat.__all__
 
 

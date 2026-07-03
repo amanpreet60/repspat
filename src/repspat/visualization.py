@@ -24,6 +24,138 @@ def plot_spatial_clusters(x, y, labels, figsize=(4, 4), point_size=10, alpha=1.0
     return fig, ax
 
 
+def _is_binary_feature(column):
+    values = column.dropna()
+    return (
+        not values.empty
+        and (
+            pd.api.types.is_numeric_dtype(values)
+            or pd.api.types.is_bool_dtype(values)
+        )
+        and set(pd.unique(values)).issubset({0, 1})
+    )
+
+
+def _resolve_binary_features(feature_df, feature_columns):
+    if feature_columns is None:
+        columns = [
+            column for column in feature_df
+            if _is_binary_feature(feature_df[column])
+        ]
+    else:
+        columns = list(feature_columns)
+        missing = [column for column in columns if column not in feature_df]
+        if missing:
+            raise ValueError(f"Feature columns not found: {missing}")
+        non_binary = [
+            column for column in columns
+            if not _is_binary_feature(feature_df[column])
+        ]
+        if non_binary:
+            raise ValueError(f"Feature columns must be binary: {non_binary}")
+    if not columns:
+        raise ValueError("No binary feature columns found to plot.")
+    return columns
+
+
+def _plot_cluster_feature_figure(
+    x, y, labels, feature_df, feature_columns, cluster_id,
+    top_n, figsize, point_size, alpha,
+):
+    import matplotlib.pyplot as plt
+
+    mask = labels == cluster_id
+    cluster_size = int(mask.sum())
+    cluster_features = feature_df.iloc[mask][feature_columns]
+    presence = (
+        cluster_features.mean()
+        .sort_values(ascending=False, kind="stable")
+        .iloc[:top_n]
+    )
+    counts = cluster_features[presence.index].sum().astype(int)
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    spatial_ax, feature_ax = axes
+
+    spatial_ax.scatter(
+        x[~mask], y[~mask], s=point_size, alpha=min(alpha, 0.35),
+        color="lightgrey",
+    )
+    spatial_ax.scatter(
+        x[mask], y[mask], s=point_size, alpha=alpha,
+        color="tab:red",
+    )
+    spatial_ax.set(
+        xlabel="X coordinate", ylabel="Y coordinate",
+        title=f"Cluster {cluster_id} (n={cluster_size})",
+    )
+    spatial_ax.grid(False)
+
+    plot_presence = presence.iloc[::-1]
+    bars = feature_ax.barh(
+        plot_presence.index, plot_presence.values * 100, color="tab:blue"
+    )
+    feature_ax.bar_label(
+        bars,
+        labels=[
+            f"{counts[feature]}/{cluster_size} ({rate:.1%})"
+            for feature, rate in plot_presence.items()
+        ],
+        padding=3,
+    )
+    feature_ax.set(
+        xlabel="Cells with feature present (%)",
+        title=f"Top {len(presence)} binary features",
+        xlim=(0, 115),
+    )
+    feature_ax.grid(axis="x", alpha=0.2)
+    fig.tight_layout()
+    return fig, axes
+
+
+def plot_cluster_feature_presence(
+    x,
+    y,
+    labels,
+    feature_df,
+    top_n=5,
+    feature_columns=None,
+    figsize=(8, 3),
+    point_size=2,
+    alpha=1.0,
+):
+    """Plot each cluster spatially beside its most prevalent binary features.
+
+    Returns cluster IDs mapped to ``(figure, axes)`` tuples.
+    """
+    if not isinstance(feature_df, pd.DataFrame):
+        raise TypeError("feature_df must be a pandas DataFrame.")
+
+    x, y, labels = (
+        np.asarray(values).reshape(-1) for values in (x, y, labels)
+    )
+    if not (len(x) == len(y) == len(labels) == len(feature_df)):
+        raise ValueError(
+            "x, y, labels, and feature_df must contain the same number of rows."
+        )
+    if top_n is not None and (
+        isinstance(top_n, bool) or not isinstance(top_n, int) or top_n <= 0
+    ):
+        raise ValueError("top_n must be a positive integer or None.")
+
+    feature_columns = _resolve_binary_features(feature_df, feature_columns)
+    cluster_ids = pd.unique(labels[~pd.isna(labels)])
+    if len(cluster_ids) == 0:
+        raise ValueError("labels must contain at least one cluster.")
+
+    return {
+        cluster_id: _plot_cluster_feature_figure(
+            x, y, labels, feature_df, feature_columns, cluster_id,
+            top_n, figsize, point_size, alpha,
+        )
+        for cluster_id in cluster_ids
+    }
+
+
 def pairwise_results_to_matrix(df, plot=True):
     # Link clusters that are NOT significantly different (adj_p >= 0.05 = similar spatial distributions)
     df = df.copy()

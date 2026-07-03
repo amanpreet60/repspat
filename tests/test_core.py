@@ -79,3 +79,38 @@ def test_pairwise_results_to_matrix_links_non_significant_pairs():
     assert matrix.loc[1, 2] == pytest.approx(0.25)
     assert matrix.loc[2, 3] == pytest.approx(0.5)
     assert matrix.loc[1, 3] == pytest.approx(0.0)
+
+
+def test_plot_cluster_feature_presence_creates_ranked_plot_per_cluster():
+    import matplotlib.pyplot as plt
+
+    from repspat import plot_cluster_feature_presence
+
+    feature_df = pd.DataFrame(
+        {
+            "marker_a": [1, 1, 0, 0, 1],
+            "marker_b": [0, 1, 0, 1, 1],
+            "marker_c": [0, 0, 1, 1, 1],
+            "continuous": [0.2, 0.4, 0.6, 0.8, 1.0],
+        }
+    )
+
+    figures = plot_cluster_feature_presence(
+        x=[0, 1, 2, 3, 4],
+        y=[0, 1, 0, 1, 0],
+        labels=[1, 1, 2, 2, 2],
+        feature_df=feature_df,
+        top_n=2,
+    )
+
+    assert set(figures) == {1, 2}
+
+    cluster_1_figure, cluster_1_axes = figures[1]
+    spatial_ax, feature_ax = cluster_1_axes
+    assert len(spatial_ax.collections[1].get_offsets()) == 2
+    assert spatial_ax.get_legend() is None
+    assert [tick.get_text() for tick in feature_ax.get_yticklabels()][-1] == "marker_a"
+    assert feature_ax.patches[-1].get_width() == pytest.approx(100.0)
+
+    for figure, _ in figures.values():
+        plt.close(figure)
