@@ -103,8 +103,8 @@ See `example.ipynb` for a full walkthrough on a TNBC dataset.
 
 ## API
 
-### `SampleData(sample_column, sample_name, adata_path=None, adata_obj=None, metric="euclidean", thresholds=None, cell_type_column="mm")`
-Loads and subsets an AnnData object for one sample. Computes the feature matrix, spatial coordinates, and pairwise distance matrix. Pass `thresholds` as `{marker: cutoff}` to binarize continuous markers.
+### `SampleData(sample_column, sample_name, adata_path=None, adata_obj=None, metric=None, thresholds=None, cell_type_column="mm")`
+Loads and subsets an AnnData object for one sample. Computes the feature matrix, spatial coordinates, and pairwise distance matrix. Pass `thresholds` as `{marker: cutoff}` to binarize continuous markers. The distance metric defaults to Jaccard when thresholds are provided and Euclidean otherwise; pass `metric` to override it.
 
 ### `spatial_silhouette_analysis(sample_data, n_neighbors_list, n_clusters_range)`
 Returns a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` combinations. Use this to pick clustering params.

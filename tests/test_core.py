@@ -3,6 +3,46 @@ import pandas as pd
 import pytest
 
 
+def make_sample_adata():
+    anndata = pytest.importorskip("anndata")
+
+    adata = anndata.AnnData(
+        X=np.array([[0.0, 0.0], [1.0, 1.0]]),
+        obs=pd.DataFrame(
+            {"sample_id": ["sample", "sample"], "mm": ["a", "b"]},
+            index=["cell1", "cell2"],
+        ),
+    )
+    adata.var_names = ["marker_a", "marker_b"]
+    adata.obsm["spatial"] = np.array([[0.0, 0.0], [1.0, 1.0]])
+    return adata
+
+
+def test_sample_data_chooses_metric_from_thresholds():
+    from repspat import SampleData
+
+    euclidean = SampleData(
+        "sample_id", "sample", adata_obj=make_sample_adata()
+    )
+    jaccard = SampleData(
+        "sample_id",
+        "sample",
+        adata_obj=make_sample_adata(),
+        thresholds={"marker_a": 0.5, "marker_b": 0.5},
+    )
+    explicit = SampleData(
+        "sample_id",
+        "sample",
+        adata_obj=make_sample_adata(),
+        thresholds={"marker_a": 0.5, "marker_b": 0.5},
+        metric="cityblock",
+    )
+
+    assert euclidean.dist_matrix.iloc[0, 1] == pytest.approx(np.sqrt(2))
+    assert jaccard.dist_matrix.iloc[0, 1] == pytest.approx(1.0)
+    assert explicit.dist_matrix.iloc[0, 1] == pytest.approx(2.0)
+
+
 def test_to_binary_warns_when_threshold_missing():
     from repspat import to_binary
 

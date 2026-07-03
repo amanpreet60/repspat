@@ -18,7 +18,7 @@ class SampleData:
         sample_name,
         adata_path=None,
         adata_obj=None,
-        metric="jaccard",
+        metric=None,
         thresholds=None,
         cell_type_column="mm"
     ):
@@ -28,6 +28,9 @@ class SampleData:
         thresholds : dict or None
             User-provided threshold map {marker_name: cutoff}.
             If None, no binarization is applied.
+        metric : str or None
+            Distance metric. Defaults to "jaccard" when thresholds are
+            provided and "euclidean" otherwise.
         """
         # Load AnnData
         if adata_obj is not None:
@@ -56,8 +59,13 @@ class SampleData:
         self.coords_mat = sample.obsm["spatial"]
 
         # Distance matrix
+        distance_metric = (
+            metric if metric is not None
+            else "jaccard" if thresholds is not None
+            else "euclidean"
+        )
         self.dist_matrix = pd.DataFrame(
-            squareform(pdist(self.feature_mat, metric=metric)),
+            squareform(pdist(self.feature_mat, metric=distance_metric)),
             index=self.feature_mat.index,
             columns=self.feature_mat.index
         )
