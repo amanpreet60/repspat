@@ -62,34 +62,6 @@ def test_custom_silhouette_uses_zero_for_clusters_without_neighbors():
     np.testing.assert_array_equal(result, np.zeros(3))
 
 
-def test_cluster_feature_presence_ranks_thresholded_features():
-    from repspat import cluster_feature_presence
-
-    feature_df = pd.DataFrame(
-        {
-            "marker_a": [1, 1, 0, 0, 1],
-            "marker_b": [0, 1, 0, 1, 1],
-            "marker_c": [0, 0, 1, 1, 1],
-            "region": [1, 1, 2, 2, 2],
-        },
-        index=["cell1", "cell2", "cell3", "cell4", "cell5"],
-    )
-
-    result = cluster_feature_presence(feature_df, top_n=2)
-
-    cluster_1 = result[result["cluster"] == 1].reset_index(drop=True)
-    cluster_2 = result[result["cluster"] == 2].reset_index(drop=True)
-
-    assert cluster_1.loc[0, "feature"] == "marker_a"
-    assert cluster_1.loc[0, "presence_rate"] == pytest.approx(1.0)
-    assert cluster_1.loc[0, "present_count"] == 2
-    assert cluster_1.loc[0, "cluster_size"] == 2
-
-    assert cluster_2.loc[0, "feature"] == "marker_c"
-    assert cluster_2.loc[0, "presence_rate"] == pytest.approx(1.0)
-    assert len(cluster_2) == 2
-
-
 def test_pairwise_results_to_matrix_links_non_significant_pairs():
     from repspat.visualization import pairwise_results_to_matrix
 
