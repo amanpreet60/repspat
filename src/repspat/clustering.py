@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import warnings
-from scipy.sparse import csr_matrix
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from .data import _as_array, _feature_array
 
@@ -22,11 +21,7 @@ def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=
 
     # Distance matrix of features
     dist_matrix = _as_array(adata.obsp["repspat_distances"])
-    dist_features_df = pd.DataFrame(
-        dist_matrix,
-        index=adata.obs_names,
-        columns=adata.obs_names
-    )
+    feature_values = _feature_array(adata)
 
     for knn in n_neighbors_list:
         # Construct spatial neighbors graph
@@ -37,13 +32,8 @@ def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=
             delaunay=False
         )
 
-        adjacency = adata.obsp["spatial_connectivities"].toarray()
-        adjacency_df = pd.DataFrame(
-            adjacency,
-            index=adata.obs_names,
-            columns=adata.obs_names
-        )
-        connectivity_sparse = csr_matrix(adjacency)
+        connectivity_sparse = adata.obsp["spatial_connectivities"].tocsr()
+        adjacency = connectivity_sparse.toarray().astype(bool)
 
         for n_clusters in n_clusters_range:
             clustering = AgglomerativeClustering(
@@ -53,10 +43,12 @@ def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=
                 connectivity=connectivity_sparse
             )
 
-            cluster_labels = clustering.fit_predict(_as_array(adata.X))
-            clusters = pd.Series(cluster_labels, index=adata.obs_names)
-
-            sil_scores = custom_silhouette(clusters, dist_features_df, adjacency_df)
+            cluster_labels = clustering.fit_predict(feature_values)
+            sil_scores = _custom_silhouette_from_arrays(
+                cluster_labels,
+                dist_matrix,
+                adjacency,
+            )
             avg_sil = np.mean(sil_scores)
 
             results.append({
@@ -68,6 +60,55 @@ def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=
     results_df = pd.DataFrame(results)
     adata.uns["repspat_silhouette"] = results_df
     return results_df
+
+
+def _custom_silhouette_from_arrays(labels, dist_matrix, adjacency):
+    labels = np.asarray(labels)
+    dist = np.asarray(dist_matrix)
+    adj = np.asarray(adjacency, dtype=bool)
+
+    silhouettes = np.zeros(labels.shape[0], dtype=float)
+
+    label_indices = {
+        label: np.flatnonzero(labels == label)
+        for label in np.unique(labels)
+    }
+
+    neighbor_labels = {}
+    for label, indices in label_indices.items():
+        connected = adj[indices].any(axis=0)
+        neighbor_labels[label] = [
+            other
+            for other in np.unique(labels[connected])
+            if other != label
+        ]
+
+    for label, indices in label_indices.items():
+        members = label_indices[label]
+        if len(members) > 1:
+            intra = dist[np.ix_(members, members)]
+            a = (intra.sum(axis=1) - np.diag(intra)) / (len(members) - 1)
+        else:
+            a = np.zeros(len(members), dtype=float)
+
+        neighbors = neighbor_labels.get(label, [])
+        if not neighbors:
+            continue
+
+        b_candidates = [
+            dist[np.ix_(members, label_indices[neighbor])].mean(axis=1)
+            for neighbor in neighbors
+        ]
+        b = np.minimum.reduce(b_candidates)
+        denom = np.maximum(a, b)
+        silhouettes[members] = np.divide(
+            b - a,
+            denom,
+            out=np.zeros_like(denom, dtype=float),
+            where=denom != 0,
+        )
+
+    return silhouettes
 
 
 def custom_silhouette(clusters, dist_matrix, adjacency):
