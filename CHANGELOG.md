@@ -12,4 +12,3 @@ Initial release.
 - `multiple_comparison` — pairwise MMD across all cluster pairs with BH/Bonferroni/Holm correction
 - `plot_spatial_clusters` — scatter plot colored by cluster
 - `pairwise_results_to_matrix` — similarity network from pairwise MMD results
-- `to_binary` — binarize continuous markers with user-defined thresholds

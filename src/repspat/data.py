@@ -1,74 +1,94 @@
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
-import warnings
 
-def to_binary(column: pd.Series, marker_name: str, thresholds: dict) -> pd.Series:
-    """Convert continuous marker values to binary using provided threshold dict."""
-    if marker_name not in thresholds:
-        warnings.warn(f"No threshold defined for marker '{marker_name}'. Column left unchanged.")
-        return column
-    
-    threshold = thresholds[marker_name]
-    return (column >= threshold).astype(int)
+def _as_array(matrix):
+    """Return a dense array from dense, sparse, or matrix-like AnnData storage."""
+    if hasattr(matrix, "toarray"):
+        return matrix.toarray()
+    if hasattr(matrix, "A"):
+        return matrix.A
+    return matrix
+
+def _feature_array(adata):
+    layer = adata.uns.get("repspat", {}).get("layer")
+    if layer is not None:
+        return _as_array(adata.layers[layer])
+    return _as_array(adata.X)
 
 class SampleData:
     def __init__(
         self,
-        sample_column,
-        sample_name,
-        adata_path=None,
-        adata_obj=None,
-        metric=None,
-        thresholds=None,
+        adata,
+        sample_column=None,
+        sample_name=None,
+        *,
+        metric,
+        layer=None,
         cell_type_column="mm"
     ):
         """
         Parameters
         ----------
-        thresholds : dict or None
-            User-provided threshold map {marker_name: cutoff}.
-            If None, no binarization is applied.
-        metric : str or None
-            Distance metric. Defaults to "jaccard" when thresholds are
-            provided and "euclidean" otherwise.
+        adata
+            AnnData object, or path to an .h5ad file.
+        sample_column : str or None
+            Column in adata.obs that identifies samples. If None, use all rows.
+        sample_name : str or None
+            Sample value to select from sample_column. If None, use all rows.
+        metric : str
+            Distance metric to use for the pairwise feature distance matrix.
+        layer : str or None
+            Name of an AnnData layer to use as the feature matrix instead of
+            adata.X. Useful when thresholded/binary data is already stored in
+            the input file.
         """
-        # Load AnnData
-        if adata_obj is not None:
-            adata = adata_obj
-        elif adata_path is not None:
+        if isinstance(adata, str):
             import scanpy as sc
 
-            adata = sc.read_h5ad(adata_path)
+            adata = sc.read_h5ad(adata)
+
+        if (sample_column is None) != (sample_name is None):
+            raise ValueError("sample_column and sample_name must be provided together.")
+
+        if sample_column is not None:
+            sample = adata[adata.obs[sample_column] == sample_name].copy()
         else:
-            raise ValueError("Provide either adata_path or adata_obj")
-        
-        # Subset sample
-        sample = adata[adata.obs[sample_column] == sample_name].copy()
-        
+            sample = adata
+
         # Feature matrix
-        X = sample.X.A if hasattr(sample.X, "A") else sample.X
+        if layer is not None:
+            if layer not in sample.layers:
+                raise KeyError(f"Layer '{layer}' not found in AnnData layers.")
+            X = _as_array(sample.layers[layer])
+        else:
+            X = _as_array(sample.X)
+
         self.feature_mat = pd.DataFrame(X, index=sample.obs_names, columns=sample.var_names)
 
-        # ---- Apply thresholds ONLY if user provided them ----
-        if thresholds is not None:
-            for col in self.feature_mat.columns:
-                if col in thresholds:
-                    self.feature_mat[col] = to_binary(self.feature_mat[col], col, thresholds)
-
         # Spatial coordinates
-        self.coords_mat = sample.obsm["spatial"]
+        coords = sample.obsm["spatial"]
+        if hasattr(coords, "to_numpy"):
+            coords = coords.to_numpy()
+            sample.obsm["spatial"] = coords
+        self.coords_mat = coords
 
         # Distance matrix
-        distance_metric = (
-            metric if metric is not None
-            else "jaccard" if thresholds is not None
-            else "euclidean"
-        )
+        dist_values = squareform(pdist(self.feature_mat, metric=metric))
         self.dist_matrix = pd.DataFrame(
-            squareform(pdist(self.feature_mat, metric=distance_metric)),
+            dist_values,
             index=self.feature_mat.index,
             columns=self.feature_mat.index
         )
+        sample.obsp["repspat_distances"] = dist_values
+        sample.uns["repspat"] = {
+            "layer": layer,
+            "metric": metric,
+            "sample_column": sample_column,
+            "sample_name": sample_name,
+            "distance_key": "repspat_distances",
+            "region_key": "repspat_region",
+            "polygon_key": "repspat_polygon_id",
+        }
 
         # Cell type
         self.cell_type = sample.obs[[cell_type_column]].copy()

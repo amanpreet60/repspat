@@ -3,6 +3,7 @@ import pandas as pd
 import warnings
 from scipy.sparse import csr_matrix
 from sklearn.cluster import KMeans, AgglomerativeClustering
+from .data import _as_array, _feature_array
 
 
 def _spatial_neighbors(*args, **kwargs):
@@ -16,30 +17,31 @@ def _spatial_neighbors(*args, **kwargs):
         )
         return sq.gr.spatial_neighbors(*args, **kwargs)
 
-def spatial_silhouette_analysis(sample_data, n_neighbors_list=[6,8], n_clusters_range=range(4,9)):
+def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=range(4,9)):
     results = []
 
     # Distance matrix of features
+    dist_matrix = _as_array(adata.obsp["repspat_distances"])
     dist_features_df = pd.DataFrame(
-        sample_data.dist_matrix,
-        index=sample_data.feature_mat.index,
-        columns=sample_data.feature_mat.index
+        dist_matrix,
+        index=adata.obs_names,
+        columns=adata.obs_names
     )
 
     for knn in n_neighbors_list:
         # Construct spatial neighbors graph
         _spatial_neighbors(
-            sample_data.sample_adata,
+            adata,
             n_neighs=knn,
             coord_type="generic",
             delaunay=False
         )
 
-        adjacency = sample_data.sample_adata.obsp["spatial_connectivities"].toarray()
+        adjacency = adata.obsp["spatial_connectivities"].toarray()
         adjacency_df = pd.DataFrame(
             adjacency,
-            index=sample_data.sample_adata.obs_names,
-            columns=sample_data.sample_adata.obs_names
+            index=adata.obs_names,
+            columns=adata.obs_names
         )
         connectivity_sparse = csr_matrix(adjacency)
 
@@ -51,8 +53,8 @@ def spatial_silhouette_analysis(sample_data, n_neighbors_list=[6,8], n_clusters_
                 connectivity=connectivity_sparse
             )
 
-            cluster_labels = clustering.fit_predict(sample_data.sample_adata.X)
-            clusters = pd.Series(cluster_labels, index=sample_data.feature_mat.index)
+            cluster_labels = clustering.fit_predict(_as_array(adata.X))
+            clusters = pd.Series(cluster_labels, index=adata.obs_names)
 
             sil_scores = custom_silhouette(clusters, dist_features_df, adjacency_df)
             avg_sil = np.mean(sil_scores)
@@ -63,7 +65,9 @@ def spatial_silhouette_analysis(sample_data, n_neighbors_list=[6,8], n_clusters_
                 "avg_silhouette": avg_sil
             })
 
-    return pd.DataFrame(results)
+    results_df = pd.DataFrame(results)
+    adata.uns["repspat_silhouette"] = results_df
+    return results_df
 
 
 def custom_silhouette(clusters, dist_matrix, adjacency):
@@ -95,27 +99,39 @@ def custom_silhouette(clusters, dist_matrix, adjacency):
 
     return np.array(silhouettes)  # return all silhouette scores as NumPy array
 
-def create_blocks(feature_mat: pd.DataFrame, num_features: int, knn: int) -> pd.DataFrame:
+def create_blocks(adata, knn: int, region_key: str = "repspat_region",
+                  polygon_key: str = "repspat_polygon_id") -> pd.DataFrame:
     """Create KMeans blocks within each region."""
-    feature_mat = feature_mat.copy()
-    feature_mat['idx'] = np.arange(len(feature_mat))  # preserve original order
-    blk_data = []
+    if region_key not in adata.obs:
+        raise KeyError(f"'{region_key}' not found in adata.obs.")
 
-    for region in feature_mat['region'].unique():
-        region_data = feature_mat[feature_mat['region'] == region].copy()
-        df = region_data.iloc[:, :num_features]
+    feature_df = pd.DataFrame(
+        _feature_array(adata),
+        index=adata.obs_names,
+        columns=adata.var_names,
+    )
+    polygon_ids = pd.Series(index=adata.obs_names, dtype="Int64")
+
+    for region in adata.obs[region_key].unique():
+        obs_names = adata.obs_names[adata.obs[region_key] == region]
+        df = feature_df.loc[obs_names]
         num_blks = len(df) // knn
         num_blks = 1 if num_blks == 0 or num_blks >= len(df.drop_duplicates()) else num_blks
-        # Assign polygon IDs
-        region_data['polygon_id'] = 1 if num_blks == 1 else KMeans(n_clusters=num_blks, n_init=10, random_state=0).fit(df).labels_ + 1
-        blk_data.append(region_data)
+        if num_blks == 1:
+            polygon_ids.loc[obs_names] = 1
+        else:
+            polygon_ids.loc[obs_names] = (
+                KMeans(n_clusters=num_blks, n_init=10, random_state=0).fit(df).labels_ + 1
+            )
 
-    # Combine and restore original order
-    return pd.concat(blk_data).sort_values('idx').drop(columns=['idx'])
+    adata.obs[polygon_key] = polygon_ids
+    adata.uns.setdefault("repspat", {})["polygon_key"] = polygon_key
+    return adata.obs[[region_key, polygon_key]].copy()
 
 
-def spatial_constrained_hac(adata, feature_df: pd.DataFrame, n_clusters: int = 7, 
-                            n_neighs: int = 8, coord_type: str = "generic", delaunay: bool = False
+def spatial_constrained_hac(adata, n_clusters: int = 7, n_neighs: int = 8,
+                            coord_type: str = "generic", delaunay: bool = False,
+                            region_key: str = "repspat_region",
 ):
     _spatial_neighbors(
         adata,
@@ -133,8 +149,15 @@ def spatial_constrained_hac(adata, feature_df: pd.DataFrame, n_clusters: int = 7
         compute_distances=True,
     )
 
-    X = adata.X.toarray() if hasattr(adata.X, "toarray") else adata.X
+    X = _as_array(adata.X)
     labels = model.fit_predict(X) + 1
-    feature_df['region'] = pd.Series(labels, index=feature_df.index).astype("category")
+    adata.obs[region_key] = pd.Series(labels, index=adata.obs_names).astype("category")
+    adata.uns.setdefault("repspat", {})["region_key"] = region_key
+    adata.uns["repspat_hac"] = {
+        "n_clusters": n_clusters,
+        "n_neighs": n_neighs,
+        "coord_type": coord_type,
+        "delaunay": delaunay,
+    }
 
-    return labels, feature_df, model
+    return labels, adata, model

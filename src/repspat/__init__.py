@@ -1,6 +1,6 @@
 __version__ = "0.1.0"
 
-from .data import SampleData, to_binary
+from .data import SampleData
 from .clustering import (
     custom_silhouette,
     create_blocks,
@@ -17,7 +17,6 @@ from .visualization import (
 
 __all__ = [
     "SampleData",
-    "to_binary",
     "custom_silhouette",
     "create_blocks",
     "spatial_silhouette_analysis",

@@ -11,6 +11,7 @@ pip install repspat
 ## Usage
 
 ```python
+import scanpy as sc
 from repspat import SampleData, spatial_silhouette_analysis, spatial_constrained_hac
 from repspat import create_blocks, multiple_comparison
 from repspat import (
@@ -23,12 +24,15 @@ from repspat import (
 ### Load a sample
 
 ```python
+adata = sc.read_h5ad("03_TNBC_2018_spe.h5ad")
 data = SampleData(
+    adata,
     sample_column="sample_id",
     sample_name="Sample_04",
-    adata_path="03_TNBC_2018_spe.h5ad",
+    metric="euclidean",
     cell_type_column="mm"
 )
+sample = data.sample_adata
 
 data.summary()
 # {
@@ -40,12 +44,27 @@ data.summary()
 # }
 ```
 
+If your `.h5ad` already contains thresholded binary features in a layer, pass
+that layer name and RepSpat will use it directly:
+
+```python
+data = SampleData(
+    adata,
+    sample_column="sample_id",
+    sample_name="Sample_04",
+    layer="binary",
+    metric="jaccard",
+    cell_type_column="mm"
+)
+sample = data.sample_adata
+```
+
 ### Find the right number of clusters
 
 Runs spatially-aware silhouette analysis over a range of k and neighbor configs:
 
 ```python
-results = spatial_silhouette_analysis(data, n_neighbors_list=[6, 8], n_clusters_range=range(4, 9))
+results = spatial_silhouette_analysis(sample, n_neighbors_list=[6, 8], n_clusters_range=range(4, 9))
 #    n_neighbors  n_clusters  avg_silhouette
 # 0            6           4        0.136721
 # 5            8           4        0.161823
@@ -54,18 +73,14 @@ results = spatial_silhouette_analysis(data, n_neighbors_list=[6, 8], n_clusters_
 ### Cluster cells
 
 ```python
-labels, feature_df, model = spatial_constrained_hac(
-    data.sample_adata,
-    feature_df=data.feature_mat,
-    n_clusters=7,
-    n_neighs=8
-)
+labels, sample, model = spatial_constrained_hac(sample, n_clusters=7, n_neighs=8)
+# labels are also stored in sample.obs["repspat_region"]
 ```
 
 ### Plot
 
 ```python
-plot_spatial_clusters(data.coords_mat.centroidX, data.coords_mat.centroidY, labels=labels)
+plot_spatial_clusters(sample)
 ```
 
 ### Plot each cluster's top binary features
@@ -74,20 +89,14 @@ Creates one two-panel figure per cluster: a spatial highlight and the cluster's
 most prevalent binary features.
 
 ```python
-cluster_figures = plot_cluster_feature_presence(
-    data.coords_mat[:, 0],
-    data.coords_mat[:, 1],
-    labels,
-    feature_df,
-    top_n=5,
-)
+cluster_figures = plot_cluster_feature_presence(sample, top_n=5)
 ```
 
 ### Run MMD tests between clusters
 
 ```python
-blocked_data = create_blocks(feature_df, num_features=36, knn=8)
-results_df = multiple_comparison(blocked_data, data.dist_matrix, kernel="IMQ")
+create_blocks(sample, knn=8)
+results_df = multiple_comparison(sample, kernel="IMQ")
 
 # pairs that are not significantly different
 print(results_df[results_df["adj_p"] >= 0.05])
@@ -96,42 +105,39 @@ print(results_df[results_df["adj_p"] >= 0.05])
 ### Similarity network
 
 ```python
-matrix = pairwise_results_to_matrix(results_df)
+matrix = pairwise_results_to_matrix(sample)
 ```
 
 See `example.ipynb` for a full walkthrough on a TNBC dataset.
 
 ## API
 
-### `SampleData(sample_column, sample_name, adata_path=None, adata_obj=None, metric=None, thresholds=None, cell_type_column="mm")`
-Loads and subsets an AnnData object for one sample. Computes the feature matrix, spatial coordinates, and pairwise distance matrix. Pass `thresholds` as `{marker: cutoff}` to binarize continuous markers. The distance metric defaults to Jaccard when thresholds are provided and Euclidean otherwise; pass `metric` to override it.
+### `SampleData(adata, sample_column=None, sample_name=None, *, metric, layer=None, cell_type_column="mm")`
+Loads and optionally subsets an AnnData object for one sample. Computes the feature matrix, spatial coordinates, and pairwise distance matrix using the required `metric` value. Pass `layer` to use an existing AnnData layer, such as a pre-thresholded binary matrix, instead of `adata.X`. Distances are stored in `adata.obsp["repspat_distances"]`.
 
-### `spatial_silhouette_analysis(sample_data, n_neighbors_list, n_clusters_range)`
-Returns a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` combinations. Use this to pick clustering params.
+### `spatial_silhouette_analysis(adata, n_neighbors_list, n_clusters_range)`
+Returns a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` combinations and stores it in `adata.uns["repspat_silhouette"]`. Use this to pick clustering params.
 
-### `spatial_constrained_hac(adata, feature_df, n_clusters, n_neighs, coord_type, delaunay)`
-Ward HAC with a spatial connectivity constraint. Returns `(labels, feature_df, model)`.
+### `spatial_constrained_hac(adata, n_clusters, n_neighs, coord_type, delaunay)`
+Ward HAC with a spatial connectivity constraint. Stores labels in `adata.obs["repspat_region"]` and returns `(labels, adata, model)`.
 
-### `create_blocks(feature_mat, num_features, knn)`
-Splits regions into KMeans blocks for block permutation testing.
+### `create_blocks(adata, knn)`
+Splits regions into KMeans blocks for block permutation testing and stores block IDs in `adata.obs["repspat_polygon_id"]`.
 
 ### `two_sample_mmd(sample1_idx, sample2_idx, dist_matrix, patient_data, kernel, kernel_param, nperm)`
 MMD² between two groups with a permutation null. Returns observed statistic, null distribution, and p-value.
 
-### `multiple_comparison(patient_data, dist_matrix, kernel, kernel_param, nperm, adj_p)`
-Pairwise MMD across all cluster pairs. `adj_p` can be `"BH"`, `"bonferroni"`, or `"holm"`.
+### `multiple_comparison(adata, kernel, kernel_param, nperm, adj_p)`
+Pairwise MMD across all cluster pairs. Reads regions, block IDs, and distances from AnnData. Stores results in `adata.uns["repspat_mmd_results"]`. `adj_p` can be `"BH"`, `"bonferroni"`, or `"holm"`.
 
-### `plot_spatial_clusters(x, y, labels)`
-Scatter plot colored by cluster.
+### `plot_spatial_clusters(adata)`
+Scatter plot colored by `adata.obs["repspat_region"]`.
 
-### `plot_cluster_feature_presence(x, y, labels, feature_df, top_n)`
+### `plot_cluster_feature_presence(adata, top_n)`
 Creates a spatial highlight and top binary-feature prevalence chart for every cluster.
 
-### `pairwise_results_to_matrix(df, plot)`
-Builds an adjacency matrix and network graph from MMD results. Edges connect clusters that are not significantly different.
-
-### `to_binary(column, marker_name, thresholds)`
-Converts a continuous marker column to binary using a threshold dict.
+### `pairwise_results_to_matrix(adata, plot)`
+Builds an adjacency matrix and network graph from `adata.uns["repspat_mmd_results"]`. Edges connect clusters that are not significantly different.
 
 ## Requirements
 

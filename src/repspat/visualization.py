@@ -2,11 +2,24 @@ import pandas as pd
 import networkx as nx
 
 import numpy as np
+from .data import _feature_array
 
-def plot_spatial_clusters(x, y, labels, figsize=(4, 4), point_size=10, alpha=1.0,
-                          title="Spatial Plot of Cells with Cluster Colors", show_legend=True):
+def _spatial_xy(adata):
+    coords = adata.obsm["spatial"]
+    if hasattr(coords, "iloc"):
+        return coords.iloc[:, 0], coords.iloc[:, 1]
+    return coords[:, 0], coords[:, 1]
+
+def plot_spatial_clusters(adata, label_key="repspat_region", figsize=(4, 4),
+                          point_size=10, alpha=1.0,
+                          title="Spatial Plot of Cells with Cluster Colors",
+                          show_legend=True):
     import matplotlib.pyplot as plt
 
+    if label_key not in adata.obs:
+        raise KeyError(f"'{label_key}' not found in adata.obs.")
+    x, y = _spatial_xy(adata)
+    labels = adata.obs[label_key]
     x, y, labels = np.asarray(x), np.asarray(y), np.asarray(labels)
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -113,25 +126,28 @@ def _plot_cluster_feature_figure(
 
 
 def plot_cluster_feature_presence(
-    x,
-    y,
-    labels,
-    feature_df,
+    adata,
     top_n=5,
     feature_columns=None,
     figsize=(8, 3),
     point_size=2,
     alpha=1.0,
+    label_key="repspat_region",
 ):
     """Plot each cluster spatially beside its most prevalent binary features.
 
     Returns cluster IDs mapped to ``(figure, axes)`` tuples.
     """
-    if not isinstance(feature_df, pd.DataFrame):
-        raise TypeError("feature_df must be a pandas DataFrame.")
+    if label_key not in adata.obs:
+        raise KeyError(f"'{label_key}' not found in adata.obs.")
 
-    x, y, labels = (
-        np.asarray(values).reshape(-1) for values in (x, y, labels)
+    x_values, y_values = _spatial_xy(adata)
+    x, y = np.asarray(x_values).reshape(-1), np.asarray(y_values).reshape(-1)
+    labels = np.asarray(adata.obs[label_key]).reshape(-1)
+    feature_df = pd.DataFrame(
+        _feature_array(adata),
+        index=adata.obs_names,
+        columns=adata.var_names,
     )
     if not (len(x) == len(y) == len(labels) == len(feature_df)):
         raise ValueError(
@@ -157,6 +173,11 @@ def plot_cluster_feature_presence(
 
 
 def pairwise_results_to_matrix(df, plot=True):
+    if hasattr(df, "uns"):
+        if "repspat_mmd_results" not in df.uns:
+            raise KeyError("'repspat_mmd_results' not found in adata.uns.")
+        df = df.uns["repspat_mmd_results"]
+
     # Link clusters that are NOT significantly different (adj_p >= 0.05 = similar spatial distributions)
     df = df.copy()
     df['link'] = (df['adj_p'] >= 0.05).astype(int)
