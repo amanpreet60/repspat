@@ -2,7 +2,6 @@ __version__ = "0.1.0"
 
 from .data import SampleData
 from .clustering import (
-    custom_silhouette,
     create_blocks,
     spatial_silhouette_analysis,
     spatial_constrained_hac,
@@ -17,7 +16,6 @@ from .visualization import (
 
 __all__ = [
     "SampleData",
-    "custom_silhouette",
     "create_blocks",
     "spatial_silhouette_analysis",
     "spatial_constrained_hac",

@@ -44,11 +44,46 @@ def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=
             )
 
             cluster_labels = clustering.fit_predict(feature_values)
-            sil_scores = _custom_silhouette_from_arrays(
-                cluster_labels,
-                dist_matrix,
-                adjacency,
-            )
+            labels = np.asarray(cluster_labels)
+            silhouettes = np.zeros(labels.shape[0], dtype=float)
+            label_indices = {
+                label: np.flatnonzero(labels == label)
+                for label in np.unique(labels)
+            }
+            neighbor_labels = {}
+            for label, indices in label_indices.items():
+                connected = adjacency[indices].any(axis=0)
+                neighbor_labels[label] = [
+                    other
+                    for other in np.unique(labels[connected])
+                    if other != label
+                ]
+
+            for label, members in label_indices.items():
+                if len(members) > 1:
+                    intra = dist_matrix[np.ix_(members, members)]
+                    a = (intra.sum(axis=1) - np.diag(intra)) / (len(members) - 1)
+                else:
+                    a = np.zeros(len(members), dtype=float)
+
+                neighbors = neighbor_labels.get(label, [])
+                if not neighbors:
+                    continue
+
+                b_candidates = [
+                    dist_matrix[np.ix_(members, label_indices[neighbor])].mean(axis=1)
+                    for neighbor in neighbors
+                ]
+                b = np.minimum.reduce(b_candidates)
+                denom = np.maximum(a, b)
+                silhouettes[members] = np.divide(
+                    b - a,
+                    denom,
+                    out=np.zeros_like(denom, dtype=float),
+                    where=denom != 0,
+                )
+
+            sil_scores = silhouettes
             avg_sil = np.mean(sil_scores)
 
             results.append({
@@ -61,84 +96,6 @@ def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=
     adata.uns["repspat_silhouette"] = results_df
     return results_df
 
-
-def _custom_silhouette_from_arrays(labels, dist_matrix, adjacency):
-    labels = np.asarray(labels)
-    dist = np.asarray(dist_matrix)
-    adj = np.asarray(adjacency, dtype=bool)
-
-    silhouettes = np.zeros(labels.shape[0], dtype=float)
-
-    label_indices = {
-        label: np.flatnonzero(labels == label)
-        for label in np.unique(labels)
-    }
-
-    neighbor_labels = {}
-    for label, indices in label_indices.items():
-        connected = adj[indices].any(axis=0)
-        neighbor_labels[label] = [
-            other
-            for other in np.unique(labels[connected])
-            if other != label
-        ]
-
-    for label, indices in label_indices.items():
-        members = label_indices[label]
-        if len(members) > 1:
-            intra = dist[np.ix_(members, members)]
-            a = (intra.sum(axis=1) - np.diag(intra)) / (len(members) - 1)
-        else:
-            a = np.zeros(len(members), dtype=float)
-
-        neighbors = neighbor_labels.get(label, [])
-        if not neighbors:
-            continue
-
-        b_candidates = [
-            dist[np.ix_(members, label_indices[neighbor])].mean(axis=1)
-            for neighbor in neighbors
-        ]
-        b = np.minimum.reduce(b_candidates)
-        denom = np.maximum(a, b)
-        silhouettes[members] = np.divide(
-            b - a,
-            denom,
-            out=np.zeros_like(denom, dtype=float),
-            where=denom != 0,
-        )
-
-    return silhouettes
-
-
-def custom_silhouette(clusters, dist_matrix, adjacency):
-    # Convert distance and adjacency matrices to DataFrames if they are NumPy arrays
-    dist = (pd.DataFrame(dist_matrix, index=clusters.index, columns=clusters.index)
-            if isinstance(dist_matrix, np.ndarray) else dist_matrix)
-    adj = (pd.DataFrame(adjacency, index=clusters.index, columns=clusters.index)
-           if isinstance(adjacency, np.ndarray) else adjacency)
-
-    # Precompute neighboring clusters for each cluster based on adjacency
-    neighbors = {}
-    for cl in clusters.unique():
-        obs = clusters[clusters == cl].index  # indices of current cluster
-        connected = adj.loc[obs].any()        # boolean series of connected cells
-        neighbors[cl] = [c for c in clusters[connected].unique() if c != cl]  # neighbor clusters
-
-    silhouettes = []
-    for i in clusters.index:
-        cl = clusters[i]                       # cluster of current observation
-        members = clusters[clusters == cl].index.drop(i, errors="ignore")  # other members in same cluster
-        a = dist.loc[i, members].mean() if len(members) else 0.0            # mean intra-cluster distance
-        neighs = neighbors.get(cl, [])                                        # neighboring clusters
-        if not neighs:
-            silhouettes.append(0.0)
-            continue
-
-        b = min(dist.loc[i, clusters == n].mean() for n in neighs)           # min mean distance to neighbors
-        silhouettes.append((b - a) / max(a, b) if max(a, b) else 0.0)        # silhouette score for i
-
-    return np.array(silhouettes)  # return all silhouette scores as NumPy array
 
 def create_blocks(adata, knn: int, region_key: str = "repspat_region",
                   polygon_key: str = "repspat_polygon_id") -> pd.DataFrame:

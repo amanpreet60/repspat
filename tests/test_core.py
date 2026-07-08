@@ -152,60 +152,6 @@ def test_compute_mmd_sq_df_rejects_unknown_kernel():
         compute_mmd_sq_df(["a"], ["a"], dist, kernel="linear")
 
 
-def test_custom_silhouette_uses_zero_for_clusters_without_neighbors():
-    from repspat import custom_silhouette
-
-    clusters = pd.Series([0, 0, 1], index=["a", "b", "c"])
-    dist = pd.DataFrame(
-        [[0.0, 1.0, 5.0], [1.0, 0.0, 5.0], [5.0, 5.0, 0.0]],
-        index=clusters.index,
-        columns=clusters.index,
-    )
-    adjacency = pd.DataFrame(0, index=clusters.index, columns=clusters.index)
-
-    result = custom_silhouette(clusters, dist, adjacency)
-
-    np.testing.assert_array_equal(result, np.zeros(3))
-
-
-def test_array_silhouette_matches_dataframe_implementation():
-    from repspat import custom_silhouette
-    from repspat.clustering import _custom_silhouette_from_arrays
-
-    clusters = pd.Series([0, 0, 1, 1, 2], index=["a", "b", "c", "d", "e"])
-    dist = pd.DataFrame(
-        [
-            [0.0, 1.0, 4.0, 5.0, 9.0],
-            [1.0, 0.0, 3.0, 4.0, 8.0],
-            [4.0, 3.0, 0.0, 2.0, 6.0],
-            [5.0, 4.0, 2.0, 0.0, 7.0],
-            [9.0, 8.0, 6.0, 7.0, 0.0],
-        ],
-        index=clusters.index,
-        columns=clusters.index,
-    )
-    adjacency = pd.DataFrame(
-        [
-            [0, 1, 1, 0, 0],
-            [1, 0, 0, 1, 0],
-            [1, 0, 0, 1, 1],
-            [0, 1, 1, 0, 0],
-            [0, 0, 1, 0, 0],
-        ],
-        index=clusters.index,
-        columns=clusters.index,
-    )
-
-    expected = custom_silhouette(clusters, dist, adjacency)
-    result = _custom_silhouette_from_arrays(
-        clusters.to_numpy(),
-        dist.to_numpy(),
-        adjacency.to_numpy(),
-    )
-
-    np.testing.assert_allclose(result, expected)
-
-
 def test_pairwise_results_to_matrix_links_non_significant_pairs():
     from repspat.visualization import pairwise_results_to_matrix
 
