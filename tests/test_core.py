@@ -98,6 +98,103 @@ def test_sample_data_keeps_original_x_when_using_feature_layer():
     )
 
 
+def make_three_cell_binary_sample():
+    anndata = pytest.importorskip("anndata")
+    adata = anndata.AnnData(
+        X=np.array(
+            [
+                [0.2, 4.0],
+                [2.0, 0.1],
+                [3.0, 5.0],
+            ]
+        ),
+        obs=pd.DataFrame(
+            {
+                "sample_id": ["sample", "sample", "sample"],
+                "mm": ["a", "b", "c"],
+            },
+            index=["cell1", "cell2", "cell3"],
+        ),
+    )
+    adata.var_names = ["marker_a", "marker_b"]
+    adata.obsm["spatial"] = np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]])
+    adata.layers["binary"] = np.array(
+        [
+            [1, 0],
+            [1, 1],
+            [0, 1],
+        ]
+    )
+    return adata
+
+
+def fake_spatial_neighbors(adata, **kwargs):
+    from scipy.sparse import csr_matrix
+
+    n_obs = adata.n_obs
+    adata.obsp["spatial_connectivities"] = csr_matrix(
+        np.ones((n_obs, n_obs)) - np.eye(n_obs)
+    )
+
+
+def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypatch):
+    from repspat import SampleData
+    import repspat.clustering as clustering
+
+    data = SampleData(
+        make_three_cell_binary_sample(),
+        "sample_id",
+        "sample",
+        metric="jaccard",
+        layer="binary",
+    )
+    captured = {}
+
+    class FakeAgglomerativeClustering:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def fit_predict(self, X):
+            captured["X"] = np.asarray(X)
+            return np.array([0, 1, 1])
+
+    monkeypatch.setattr(clustering, "_spatial_neighbors", fake_spatial_neighbors)
+    monkeypatch.setattr(clustering, "AgglomerativeClustering", FakeAgglomerativeClustering)
+
+    labels, clustered_adata, model = clustering.spatial_constrained_hac(
+        data.sample_adata,
+        n_clusters=2,
+        n_neighs=1,
+        linkage="ward",
+    )
+
+    np.testing.assert_array_equal(
+        captured["X"],
+        np.array(
+            [
+                [1, 0],
+                [1, 1],
+                [0, 1],
+            ]
+        ),
+    )
+    np.testing.assert_array_equal(labels, np.array([1, 2, 2]))
+    assert clustered_adata.uns["repspat_hac"]["layer"] == "binary"
+    assert clustered_adata.uns["repspat_hac"]["metric"] == "jaccard"
+    assert clustered_adata.uns["repspat_hac"]["linkage"] == "ward"
+    assert model.kwargs["n_clusters"] == 2
+    assert model.kwargs["metric"] == "euclidean"
+    assert model.kwargs["linkage"] == "ward"
+
+
+def test_spatial_constrained_hac_accepts_ward_d2_alias(monkeypatch):
+    import repspat.clustering as clustering
+
+    monkeypatch.setattr(clustering, "_spatial_neighbors", fake_spatial_neighbors)
+
+    assert clustering._resolve_hac_linkage("ward.D2") == "ward"
+
+
 def test_sample_data_converts_spatial_dataframe_to_numpy():
     from repspat import SampleData
 

@@ -4,6 +4,8 @@ import warnings
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from .data import _as_array, _feature_array
 
+_ALLOWED_HAC_LINKAGES = {"ward", "single", "complete", "average"}
+
 
 def _spatial_neighbors(*args, **kwargs):
     import squidpy as sq
@@ -16,13 +18,50 @@ def _spatial_neighbors(*args, **kwargs):
         )
         return sq.gr.spatial_neighbors(*args, **kwargs)
 
-def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=range(4,9)):
+
+def _resolve_hac_linkage(linkage):
+    if linkage is None or linkage == "auto":
+        return "ward"
+
+    normalized = str(linkage).lower()
+    if normalized == "ward.d2":
+        normalized = "ward"
+    if normalized not in _ALLOWED_HAC_LINKAGES:
+        allowed = sorted(_ALLOWED_HAC_LINKAGES | {"auto", "ward.D2"})
+        raise ValueError(f"linkage must be one of: {allowed}")
+    return normalized
+
+
+def _hac_model_and_input(
+    adata,
+    n_clusters,
+    connectivity,
+    linkage="auto",
+    compute_distances=False,
+):
+    linkage = _resolve_hac_linkage(linkage)
+    X = _feature_array(adata)
+    model = AgglomerativeClustering(
+        n_clusters=n_clusters,
+        metric="euclidean",
+        linkage=linkage,
+        connectivity=connectivity,
+        compute_distances=compute_distances,
+    )
+
+    return model, X, linkage
+
+
+def spatial_silhouette_analysis(
+    adata,
+    n_neighbors_list=[6,8],
+    n_clusters_range=range(4,9),
+    linkage="auto",
+):
     results = []
 
     # Distance matrix of features
     dist_matrix = _as_array(adata.obsp["repspat_distances"])
-    feature_values = _feature_array(adata)
-
     for knn in n_neighbors_list:
         # Construct spatial neighbors graph
         _spatial_neighbors(
@@ -36,14 +75,14 @@ def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=
         adjacency = connectivity_sparse.toarray().astype(bool)
 
         for n_clusters in n_clusters_range:
-            clustering = AgglomerativeClustering(
+            clustering, clustering_input, resolved_linkage = _hac_model_and_input(
+                adata,
                 n_clusters=n_clusters,
-                metric="euclidean",
-                linkage="ward",
-                connectivity=connectivity_sparse
+                connectivity=connectivity_sparse,
+                linkage=linkage,
             )
 
-            cluster_labels = clustering.fit_predict(feature_values)
+            cluster_labels = clustering.fit_predict(clustering_input)
             labels = np.asarray(cluster_labels)
             silhouettes = np.zeros(labels.shape[0], dtype=float)
             label_indices = {
@@ -89,6 +128,7 @@ def spatial_silhouette_analysis(adata, n_neighbors_list=[6,8], n_clusters_range=
             results.append({
                 "n_neighbors": knn,
                 "n_clusters": n_clusters,
+                "linkage": resolved_linkage,
                 "avg_silhouette": avg_sil
             })
 
@@ -130,6 +170,7 @@ def create_blocks(adata, knn: int, region_key: str = "repspat_region",
 def spatial_constrained_hac(adata, n_clusters: int = 7, n_neighs: int = 8,
                             coord_type: str = "generic", delaunay: bool = False,
                             region_key: str = "repspat_region",
+                            linkage: str = "auto",
 ):
     _spatial_neighbors(
         adata,
@@ -140,14 +181,14 @@ def spatial_constrained_hac(adata, n_clusters: int = 7, n_neighs: int = 8,
 
     connectivity = adata.obsp["spatial_connectivities"].tocsr()
 
-    model = AgglomerativeClustering(
+    repspat_settings = adata.uns.get("repspat", {})
+    model, X, resolved_linkage = _hac_model_and_input(
+        adata,
         n_clusters=n_clusters,
-        linkage="ward",
         connectivity=connectivity,
+        linkage=linkage,
         compute_distances=True,
     )
-
-    X = _as_array(adata.X)
     labels = model.fit_predict(X) + 1
     adata.obs[region_key] = pd.Series(labels, index=adata.obs_names).astype("category")
     adata.uns.setdefault("repspat", {})["region_key"] = region_key
@@ -156,6 +197,9 @@ def spatial_constrained_hac(adata, n_clusters: int = 7, n_neighs: int = 8,
         "n_neighs": n_neighs,
         "coord_type": coord_type,
         "delaunay": delaunay,
+        "linkage": resolved_linkage,
+        "layer": repspat_settings.get("layer"),
+        "metric": repspat_settings.get("metric"),
     }
 
     return labels, adata, model
