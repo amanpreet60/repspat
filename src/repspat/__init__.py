@@ -1,6 +1,6 @@
 __version__ = "0.1.0"
 
-from .data import SampleData
+from .data import compute_distances
 from .clustering import (
     create_blocks,
     spatial_silhouette_analysis,
@@ -15,7 +15,7 @@ from .visualization import (
 )
 
 __all__ = [
-    "SampleData",
+    "compute_distances",
     "create_blocks",
     "spatial_silhouette_analysis",
     "spatial_constrained_hac",

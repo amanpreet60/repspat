@@ -47,6 +47,20 @@ def _hac_model_and_input(
     return model, X, linkage
 
 
+def _caller_adata_name(adata):
+    import inspect
+
+    frame = inspect.currentframe()
+    caller = frame.f_back.f_back if frame and frame.f_back else None
+    if caller is None:
+        return "adata"
+
+    for name, value in caller.f_locals.items():
+        if value is adata:
+            return name
+    return "adata"
+
+
 def spatial_silhouette_analysis(
     adata,
     n_neighbors_list=[6,8],
@@ -70,7 +84,7 @@ def spatial_silhouette_analysis(
         adjacency = connectivity_sparse.toarray().astype(bool)
 
         for n_clusters in n_clusters_range:
-            clustering, clustering_input, resolved_linkage = _hac_model_and_input(
+            clustering, clustering_input, _ = _hac_model_and_input(
                 adata,
                 n_clusters=n_clusters,
                 connectivity=connectivity_sparse,
@@ -123,17 +137,20 @@ def spatial_silhouette_analysis(
             results.append({
                 "n_neighbors": knn,
                 "n_clusters": n_clusters,
-                "linkage": resolved_linkage,
                 "avg_silhouette": avg_sil
             })
 
     results_df = pd.DataFrame(results)
-    adata.uns["repspat_silhouette"] = results_df
-    return results_df
+    adata.uns["silhouette_scores"] = results_df
+    print(
+        "Silhouette scores are stored in "
+        f'{_caller_adata_name(adata)}.uns["silhouette_scores"]'
+    )
+    return adata
 
 
 def create_blocks(adata, knn: int, region_key: str = "repspat_region",
-                  polygon_key: str = "repspat_polygon_id") -> pd.DataFrame:
+                  polygon_key: str = "repspat_polygon_id"):
     """Create KMeans blocks within each region."""
     if region_key not in adata.obs:
         raise KeyError(f"'{region_key}' not found in adata.obs.")
@@ -159,7 +176,7 @@ def create_blocks(adata, knn: int, region_key: str = "repspat_region",
 
     adata.obs[polygon_key] = polygon_ids
     adata.uns.setdefault("repspat", {})["polygon_key"] = polygon_key
-    return adata.obs[[region_key, polygon_key]].copy()
+    return adata
 
 
 def spatial_constrained_hac(adata, n_clusters: int = 7, n_neighs: int = 8,

@@ -4,7 +4,7 @@
 
 Initial release.
 
-- `SampleData` — load and subset AnnData samples, compute distance matrices
+- `compute_distances` — compute distance matrices from explicit AnnData layers
 - `spatial_silhouette_analysis` — pick cluster count using spatial silhouette scores
 - `spatial_constrained_hac` — spatially-constrained HAC clustering
 - `create_blocks` — KMeans block creation for permutation testing

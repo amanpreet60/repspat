@@ -12,8 +12,8 @@ pip install repspat
 
 ```python
 import scanpy as sc
-from repspat import SampleData, spatial_silhouette_analysis, spatial_constrained_hac
-from repspat import create_blocks, multiple_comparison
+from repspat import compute_distances, create_blocks, multiple_comparison
+from repspat import spatial_silhouette_analysis, spatial_constrained_hac
 from repspat import (
     pairwise_results_to_matrix,
     plot_cluster_feature_presence,
@@ -25,38 +25,38 @@ from repspat import (
 
 ```python
 adata = sc.read_h5ad("03_TNBC_2018_spe.h5ad")
-data = SampleData(
-    adata,
-    sample_column="sample_id",
-    sample_name="Sample_04",
-    metric="euclidean",
-    cell_type_column="mm"
-)
-sample = data.sample_adata
+adata = adata[adata.obs["sample_id"] == "Sample_04"].copy()
 
-data.summary()
+adata = compute_distances(
+    adata,
+    layer="binary",
+    metric="jaccard",
+)
+
+{
+    "feature_layer": adata.layers["binary"].shape,
+    "coords_mat": adata.obsm["spatial"].shape,
+    "dist_matrix": adata.obsp["repspat_distances"].shape,
+    "adata": adata.shape,
+}
 # {
-#   'feature_mat': (5381, 36),
-#   'coords_mat':  (5381, 2),
+#   'feature_layer': (5381, 36),
+#   'coords_mat': (5381, 2),
 #   'dist_matrix': (5381, 5381),
-#   'cell_type':   (5381, 1),
-#   'sample_adata':(5381, 36)
+#   'adata': (5381, 36)
 # }
 ```
 
-If your `.h5ad` already contains thresholded binary features in a layer, pass
-that layer name and RepSpat will use it directly:
+If you want to use continuous features, store them in a layer and pass that
+layer explicitly:
 
 ```python
-data = SampleData(
+adata.layers["continuous"] = adata.X.copy()
+adata = compute_distances(
     adata,
-    sample_column="sample_id",
-    sample_name="Sample_04",
-    layer="binary",
-    metric="jaccard",
-    cell_type_column="mm"
+    layer="continuous",
+    metric="euclidean",
 )
-sample = data.sample_adata
 ```
 
 ### Find the right number of clusters
@@ -64,32 +64,33 @@ sample = data.sample_adata
 Runs spatially-aware silhouette analysis over a range of k and neighbor configs:
 
 ```python
-results = spatial_silhouette_analysis(
-    sample,
+adata = spatial_silhouette_analysis(
+    adata,
     n_neighbors_list=[6, 8],
     n_clusters_range=range(4, 9),
 )
-#    n_neighbors  n_clusters linkage  avg_silhouette
-# 0            6           4    ward        0.136721
-# 5            8           4    ward        0.161823
+adata.uns["silhouette_scores"]
+#    n_neighbors  n_clusters  avg_silhouette
+# 0            6           4        0.136721
+# 5            8           4        0.161823
 ```
 
 ### Cluster cells
 
 ```python
-labels, sample, model = spatial_constrained_hac(
-    sample,
+labels, adata, model = spatial_constrained_hac(
+    adata,
     n_clusters=7,
     n_neighs=8,
     linkage="ward",
 )
-# labels are also stored in sample.obs["repspat_region"]
+# labels are also stored in adata.obs["repspat_region"]
 ```
 
 ### Plot
 
 ```python
-plot_spatial_clusters(sample)
+plot_spatial_clusters(adata)
 ```
 
 ### Plot each cluster's top features
@@ -99,14 +100,14 @@ top features. Binary features are shown as presence rates; continuous numeric
 features are shown as cluster-vs-rest standardized enrichment scores.
 
 ```python
-cluster_figures = plot_cluster_feature_presence(sample, top_n=10)
+cluster_figures = plot_cluster_feature_presence(adata, top_n=10)
 ```
 
 ### Run MMD tests between clusters
 
 ```python
-create_blocks(sample, knn=8)
-results_df = multiple_comparison(sample, kernel="IMQ")
+adata = create_blocks(adata, knn=8)
+results_df = multiple_comparison(adata, kernel="IMQ")
 
 # pairs that are not significantly different
 print(results_df[results_df["adj_p"] >= 0.05])
@@ -115,24 +116,24 @@ print(results_df[results_df["adj_p"] >= 0.05])
 ### Similarity network
 
 ```python
-matrix = pairwise_results_to_matrix(sample)
+matrix = pairwise_results_to_matrix(adata)
 ```
 
 See `example.ipynb` for a full walkthrough on a TNBC dataset.
 
 ## API
 
-### `SampleData(adata, sample_column=None, sample_name=None, *, metric, layer=None, cell_type_column="mm")`
-Loads and optionally subsets an AnnData object for one sample. Computes the feature matrix, spatial coordinates, and pairwise distance matrix using the required `metric` value. Pass `layer` to use an existing AnnData layer, such as a pre-thresholded binary matrix, instead of `adata.X`. Distances are stored in `adata.obsp["repspat_distances"]`.
+### `compute_distances(adata, *, layer, metric, distance_key="repspat_distances")`
+Computes pairwise distances from the required AnnData layer, stores them in `adata.obsp[distance_key]`, records the active feature layer in `adata.uns["repspat"]["layer"]`, and returns the same `adata`.
 
 ### `spatial_silhouette_analysis(adata, n_neighbors_list, n_clusters_range, linkage="ward")`
-Returns a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` combinations and stores it in `adata.uns["repspat_silhouette"]`. Use this to pick clustering params. `linkage` can be `"ward"`, `"single"`, `"complete"`, or `"average"`.
+Stores a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` combinations in `adata.uns["silhouette_scores"]` and returns the same `adata`. Use this to pick clustering params. `linkage` can be `"ward"`, `"single"`, `"complete"`, or `"average"`.
 
 ### `spatial_constrained_hac(adata, n_clusters, n_neighs, coord_type, delaunay, linkage="ward")`
-HAC with a spatial connectivity constraint. Stores labels in `adata.obs["repspat_region"]` and returns `(labels, adata, model)`. Clustering always uses the selected feature matrix from `SampleData`; `metric` controls the stored distance matrix used by silhouette and downstream tests. Set `linkage` to `"single"`, `"complete"`, or `"average"` when needed.
+HAC with a spatial connectivity constraint. Stores labels in `adata.obs["repspat_region"]` and returns `(labels, adata, model)`. Clustering uses the active feature layer recorded by `compute_distances`; `metric` controls the stored distance matrix used by silhouette and downstream tests. Set `linkage` to `"single"`, `"complete"`, or `"average"` when needed.
 
 ### `create_blocks(adata, knn)`
-Splits regions into KMeans blocks for block permutation testing and stores block IDs in `adata.obs["repspat_polygon_id"]`.
+Splits regions into KMeans blocks for block permutation testing, stores block IDs in `adata.obs["repspat_polygon_id"]`, and returns the same `adata`.
 
 ### `two_sample_mmd(sample1_idx, sample2_idx, dist_matrix, patient_data, kernel, kernel_param, nperm)`
 MMD² between two groups with a permutation null. Returns observed statistic, null distribution, and p-value.

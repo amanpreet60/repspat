@@ -2,7 +2,7 @@ def test_package_imports_core_api():
     import repspat
 
     assert repspat.__version__ == "0.1.0"
-    assert "SampleData" in repspat.__all__
+    assert "compute_distances" in repspat.__all__
     assert "multiple_comparison" in repspat.__all__
     assert "visualization" in repspat.__all__
     assert "plot_spatial_clusters" in repspat.__all__

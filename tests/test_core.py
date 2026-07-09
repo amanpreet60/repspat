@@ -25,77 +25,36 @@ def make_layered_adata():
     return adata
 
 
-def test_sample_data_chooses_metric_from_layer():
-    from repspat import SampleData
+def test_compute_distances_requires_feature_layer_and_updates_adata():
+    from repspat import compute_distances
 
-    euclidean = SampleData(
-        make_sample_adata(), "sample_id", "sample", metric="euclidean"
-    )
-    jaccard = SampleData(
-        make_layered_adata(),
-        "sample_id",
-        "sample",
-        metric="jaccard",
-        layer="binary",
-    )
-    explicit = SampleData(
-        make_layered_adata(),
-        "sample_id",
-        "sample",
-        metric="cityblock",
-        layer="binary",
-    )
+    adata = make_layered_adata()
+    adata.X = None
 
-    assert euclidean.dist_matrix.iloc[0, 1] == pytest.approx(np.sqrt(2))
-    assert jaccard.dist_matrix.iloc[0, 1] == pytest.approx(1.0)
-    assert explicit.dist_matrix.iloc[0, 1] == pytest.approx(2.0)
+    returned = compute_distances(adata, layer="binary", metric="jaccard")
 
-
-def test_sample_data_can_use_feature_layer():
-    from repspat import SampleData
-
-    data = SampleData(
-        make_layered_adata(),
-        "sample_id",
-        "sample",
-        metric="jaccard",
-        layer="binary",
-    )
-
-    expected = pd.DataFrame(
-        [[0, 1], [1, 0]],
-        index=["cell1", "cell2"],
-        columns=["marker_a", "marker_b"],
-    )
-    pd.testing.assert_frame_equal(data.feature_mat, expected)
+    assert returned is adata
+    assert adata.uns["repspat"]["layer"] == "binary"
+    assert adata.uns["repspat"]["metric"] == "jaccard"
+    assert adata.uns["repspat"]["distance_key"] == "repspat_distances"
     np.testing.assert_array_equal(
-        data.sample_adata.X,
-        np.array([[0.2, 4.0], [2.0, 0.1]]),
-    )
-    np.testing.assert_array_equal(data.sample_adata.obsp["repspat_distances"], data.dist_matrix.to_numpy())
-    assert data.dist_matrix.iloc[0, 1] == pytest.approx(1.0)
-
-
-def test_sample_data_keeps_original_x_when_using_feature_layer():
-    from repspat import SampleData
-
-    data = SampleData(
-        make_layered_adata(),
-        "sample_id",
-        "sample",
-        metric="jaccard",
-        layer="binary",
+        adata.obsp["repspat_distances"],
+        np.array([[0.0, 1.0], [1.0, 0.0]]),
     )
 
-    assert data.sample_adata.uns["repspat"]["layer"] == "binary"
-    np.testing.assert_array_equal(
-        data.feature_mat.to_numpy(),
-        np.array([[0, 1], [1, 0]]),
-    )
-    np.testing.assert_array_equal(
-        data.sample_adata.X,
-        np.array([[0.2, 4.0], [2.0, 0.1]]),
-    )
+
+def test_compute_distances_rejects_missing_feature_layer():
+    from repspat import compute_distances
+
+    with pytest.raises(KeyError, match="Layer 'missing' not found"):
+        compute_distances(make_layered_adata(), layer="missing", metric="jaccard")
+
+
+def test_compute_distances_rejects_empty_feature_layer():
+    from repspat import compute_distances
+
+    with pytest.raises(ValueError, match="layer must be provided"):
+        compute_distances(make_layered_adata(), layer=None, metric="jaccard")
 
 
 def make_three_cell_binary_sample():
@@ -138,15 +97,11 @@ def fake_spatial_neighbors(adata, **kwargs):
 
 
 def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypatch):
-    from repspat import SampleData
+    from repspat import compute_distances
     import repspat.clustering as clustering
 
-    data = SampleData(
-        make_three_cell_binary_sample(),
-        "sample_id",
-        "sample",
-        metric="jaccard",
-        layer="binary",
+    adata = compute_distances(
+        make_three_cell_binary_sample(), layer="binary", metric="jaccard"
     )
     captured = {}
 
@@ -162,7 +117,7 @@ def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypat
     monkeypatch.setattr(clustering, "AgglomerativeClustering", FakeAgglomerativeClustering)
 
     labels, clustered_adata, model = clustering.spatial_constrained_hac(
-        data.sample_adata,
+        adata,
         n_clusters=2,
         n_neighs=1,
         linkage="ward",
@@ -187,42 +142,51 @@ def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypat
     assert model.kwargs["linkage"] == "ward"
 
 
+def test_spatial_silhouette_analysis_result_omits_linkage_column(monkeypatch, capsys):
+    from repspat import compute_distances
+    import repspat.clustering as clustering
+
+    adata = compute_distances(
+        make_three_cell_binary_sample(), layer="binary", metric="jaccard"
+    )
+
+    class FakeAgglomerativeClustering:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def fit_predict(self, X):
+            return np.array([0, 0, 1])
+
+    monkeypatch.setattr(clustering, "_spatial_neighbors", fake_spatial_neighbors)
+    monkeypatch.setattr(clustering, "AgglomerativeClustering", FakeAgglomerativeClustering)
+    example_adata = adata
+
+    returned = clustering.spatial_silhouette_analysis(
+        example_adata,
+        n_neighbors_list=[1],
+        n_clusters_range=[2],
+        linkage="ward",
+    )
+    results = example_adata.uns["silhouette_scores"]
+    captured = capsys.readouterr()
+
+    assert returned is example_adata
+    assert (
+        'Silhouette scores are stored in adata.uns["silhouette_scores"]'
+        in captured.out
+    )
+    assert results.columns.tolist() == [
+        "n_neighbors",
+        "n_clusters",
+        "avg_silhouette",
+    ]
+
+
 def test_validate_hac_linkage_rejects_unknown_linkage():
     import repspat.clustering as clustering
 
     with pytest.raises(ValueError, match="linkage must be one of"):
         clustering._validate_hac_linkage("auto")
-
-
-def test_sample_data_converts_spatial_dataframe_to_numpy():
-    from repspat import SampleData
-
-    adata = make_sample_adata()
-    adata.obsm["spatial"] = pd.DataFrame(
-        {"centroidX": [0.0, 1.0], "centroidY": [0.0, 1.0]},
-        index=adata.obs_names,
-    )
-
-    data = SampleData(adata, "sample_id", "sample", metric="euclidean")
-
-    assert isinstance(data.sample_adata.obsm["spatial"], np.ndarray)
-    np.testing.assert_array_equal(
-        data.sample_adata.obsm["spatial"],
-        np.array([[0.0, 0.0], [1.0, 1.0]]),
-    )
-
-
-def test_sample_data_rejects_missing_feature_layer():
-    from repspat import SampleData
-
-    with pytest.raises(KeyError, match="Layer 'missing' not found"):
-        SampleData(
-            make_layered_adata(),
-            "sample_id",
-            "sample",
-            metric="jaccard",
-            layer="missing",
-        )
 
 
 def test_compute_mmd_sq_df_gaussian_identical_groups_is_zero():
@@ -270,7 +234,7 @@ def test_pairwise_results_to_matrix_links_non_significant_pairs():
 def test_plot_cluster_feature_presence_creates_ranked_plot_per_cluster():
     import matplotlib.pyplot as plt
 
-    from repspat import plot_cluster_feature_presence
+    from repspat import compute_distances, plot_cluster_feature_presence
 
     anndata = pytest.importorskip("anndata")
     adata = anndata.AnnData(
@@ -289,6 +253,8 @@ def test_plot_cluster_feature_presence_creates_ranked_plot_per_cluster():
     adata.obsm["spatial"] = np.array(
         [[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]]
     )
+    adata.layers["features"] = adata.X.copy()
+    adata = compute_distances(adata, layer="features", metric="euclidean")
 
     figures = plot_cluster_feature_presence(
         adata,
@@ -311,7 +277,7 @@ def test_plot_cluster_feature_presence_creates_ranked_plot_per_cluster():
 def test_plot_cluster_feature_presence_falls_back_to_enrichment_for_continuous_data():
     import matplotlib.pyplot as plt
 
-    from repspat import plot_cluster_feature_presence
+    from repspat import compute_distances, plot_cluster_feature_presence
 
     anndata = pytest.importorskip("anndata")
     adata = anndata.AnnData(
@@ -330,6 +296,8 @@ def test_plot_cluster_feature_presence_falls_back_to_enrichment_for_continuous_d
     adata.obsm["spatial"] = np.array(
         [[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]]
     )
+    adata.layers["features"] = adata.X.copy()
+    adata = compute_distances(adata, layer="features", metric="euclidean")
 
     figures = plot_cluster_feature_presence(
         adata,
@@ -386,7 +354,7 @@ def test_plot_spatial_clusters_accepts_dataframe_spatial_coords():
 
 
 def test_create_blocks_writes_polygon_ids_to_adata():
-    from repspat import create_blocks
+    from repspat import compute_distances, create_blocks
 
     anndata = pytest.importorskip("anndata")
     adata = anndata.AnnData(
@@ -394,11 +362,14 @@ def test_create_blocks_writes_polygon_ids_to_adata():
         obs=pd.DataFrame({"repspat_region": [1, 1, 2, 2]}),
     )
     adata.var_names = ["marker_a", "marker_b"]
+    adata.layers["features"] = adata.X.copy()
+    adata = compute_distances(adata, layer="features", metric="euclidean")
 
-    blocks = create_blocks(adata, knn=8)
+    returned = create_blocks(adata, knn=8)
 
+    assert returned is adata
     assert "repspat_polygon_id" in adata.obs
-    assert blocks["repspat_polygon_id"].tolist() == [1, 1, 1, 1]
+    assert adata.obs["repspat_polygon_id"].tolist() == [1, 1, 1, 1]
 
 
 def test_pairwise_results_to_matrix_reads_anndata_results():
