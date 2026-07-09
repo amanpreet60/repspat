@@ -92,13 +92,14 @@ labels, sample, model = spatial_constrained_hac(
 plot_spatial_clusters(sample)
 ```
 
-### Plot each cluster's top binary features
+### Plot each cluster's top features
 
 Creates one two-panel figure per cluster: a spatial highlight and the cluster's
-most prevalent binary features.
+top features. Binary features are shown as presence rates; continuous numeric
+features are shown as cluster-vs-rest standardized enrichment scores.
 
 ```python
-cluster_figures = plot_cluster_feature_presence(sample, top_n=5)
+cluster_figures = plot_cluster_feature_presence(sample, top_n=10)
 ```
 
 ### Run MMD tests between clusters
@@ -143,7 +144,7 @@ Pairwise MMD across all cluster pairs. Reads regions, block IDs, and distances f
 Scatter plot colored by `adata.obs["repspat_region"]`.
 
 ### `plot_cluster_feature_presence(adata, top_n)`
-Creates a spatial highlight and top binary-feature prevalence chart for every cluster.
+Creates a spatial highlight and top feature chart for every cluster. Uses binary-feature prevalence when binary features are available, otherwise falls back to cluster-vs-rest standardized enrichment for numeric features.
 
 ### `pairwise_results_to_matrix(adata, plot)`
 Builds an adjacency matrix and network graph from `adata.uns["repspat_mmd_results"]`. Edges connect clusters that are not significantly different.

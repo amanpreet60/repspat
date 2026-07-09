@@ -308,6 +308,44 @@ def test_plot_cluster_feature_presence_creates_ranked_plot_per_cluster():
         plt.close(figure)
 
 
+def test_plot_cluster_feature_presence_falls_back_to_enrichment_for_continuous_data():
+    import matplotlib.pyplot as plt
+
+    from repspat import plot_cluster_feature_presence
+
+    anndata = pytest.importorskip("anndata")
+    adata = anndata.AnnData(
+        X=np.array(
+            [
+                [1000.0, 2.0, 4.0],
+                [1000.0, 2.0, 5.0],
+                [1100.0, 0.0, 5.0],
+                [900.0, 0.2, 4.0],
+                [1000.0, 0.4, 4.0],
+            ]
+        ),
+        obs=pd.DataFrame({"repspat_region": [1, 1, 2, 2, 2]}),
+    )
+    adata.var_names = ["large_scale_marker", "cluster_marker", "other_marker"]
+    adata.obsm["spatial"] = np.array(
+        [[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]]
+    )
+
+    figures = plot_cluster_feature_presence(
+        adata,
+        top_n=2,
+    )
+
+    _, cluster_1_axes = figures[1]
+    feature_ax = cluster_1_axes[1]
+    assert feature_ax.get_xlabel() == "Cluster-vs-rest standardized enrichment"
+    assert [tick.get_text() for tick in feature_ax.get_yticklabels()][-1] == "cluster_marker"
+    assert feature_ax.patches[-1].get_width() > 0
+
+    for figure, _ in figures.values():
+        plt.close(figure)
+
+
 def test_plot_spatial_clusters_reads_anndata_slots():
     import matplotlib.pyplot as plt
 

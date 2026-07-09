@@ -71,6 +71,34 @@ def _resolve_binary_features(feature_df, feature_columns):
     return columns
 
 
+def _resolve_numeric_features(feature_df, feature_columns):
+    if feature_columns is None:
+        columns = [
+            column for column in feature_df
+            if pd.api.types.is_numeric_dtype(feature_df[column])
+        ]
+    else:
+        columns = list(feature_columns)
+        missing = [column for column in columns if column not in feature_df]
+        if missing:
+            raise ValueError(f"Feature columns not found: {missing}")
+        non_numeric = [
+            column for column in columns
+            if not pd.api.types.is_numeric_dtype(feature_df[column])
+        ]
+        if non_numeric:
+            raise ValueError(f"Feature columns must be numeric: {non_numeric}")
+    if not columns:
+        raise ValueError("No numeric feature columns found to plot.")
+    return columns
+
+
+def _standardize_features(feature_df, feature_columns):
+    selected = feature_df[feature_columns]
+    scale = selected.std(ddof=0).replace(0, np.nan)
+    return ((selected - selected.mean()) / scale).fillna(0.0)
+
+
 def _plot_cluster_feature_figure(
     x, y, labels, feature_df, feature_columns, cluster_id,
     top_n, figsize, point_size, alpha,
@@ -125,6 +153,59 @@ def _plot_cluster_feature_figure(
     return fig, axes
 
 
+def _plot_cluster_feature_enrichment_figure(
+    x, y, labels, feature_df, feature_columns, cluster_id,
+    top_n, figsize, point_size, alpha,
+):
+    import matplotlib.pyplot as plt
+
+    mask = labels == cluster_id
+    cluster_size = int(mask.sum())
+    standardized = _standardize_features(feature_df, feature_columns)
+    cluster_mean = standardized.iloc[mask].mean()
+    if (~mask).any():
+        rest_mean = standardized.iloc[~mask].mean()
+        scores = cluster_mean - rest_mean
+    else:
+        scores = cluster_mean
+    scores = scores.sort_values(ascending=False, kind="stable").iloc[:top_n]
+
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    spatial_ax, feature_ax = axes
+
+    spatial_ax.scatter(
+        x[~mask], y[~mask], s=point_size, alpha=min(alpha, 0.35),
+        color="lightgrey",
+    )
+    spatial_ax.scatter(
+        x[mask], y[mask], s=point_size, alpha=alpha,
+        color="tab:red",
+    )
+    spatial_ax.set(
+        xlabel="X coordinate", ylabel="Y coordinate",
+        title=f"Cluster {cluster_id} (n={cluster_size})",
+    )
+    spatial_ax.grid(False)
+
+    plot_scores = scores.iloc[::-1]
+    bars = feature_ax.barh(
+        plot_scores.index, plot_scores.values, color="tab:green"
+    )
+    feature_ax.axvline(0, color="black", linewidth=0.8, alpha=0.4)
+    feature_ax.bar_label(
+        bars,
+        labels=[f"{value:.3g}" for value in plot_scores.values],
+        padding=3,
+    )
+    feature_ax.set(
+        xlabel="Cluster-vs-rest standardized enrichment",
+        title=f"Top {len(scores)} enriched features",
+    )
+    feature_ax.grid(axis="x", alpha=0.2)
+    fig.tight_layout()
+    return fig, axes
+
+
 def plot_cluster_feature_presence(
     adata,
     top_n=5,
@@ -134,8 +215,11 @@ def plot_cluster_feature_presence(
     alpha=1.0,
     label_key="repspat_region",
 ):
-    """Plot each cluster spatially beside its most prevalent binary features.
+    """Plot each cluster beside binary presence or continuous enrichment.
 
+    Binary features are plotted as presence rates. If no binary features are
+    found, or if any selected feature is continuous, numeric features are
+    plotted by cluster-vs-rest standardized enrichment.
     Returns cluster IDs mapped to ``(figure, axes)`` tuples.
     """
     if label_key not in adata.obs:
@@ -158,13 +242,34 @@ def plot_cluster_feature_presence(
     ):
         raise ValueError("top_n must be a positive integer or None.")
 
-    feature_columns = _resolve_binary_features(feature_df, feature_columns)
+    if feature_columns is None:
+        binary_columns = [
+            column for column in feature_df
+            if _is_binary_feature(feature_df[column])
+        ]
+        if binary_columns:
+            feature_columns = binary_columns
+            plotter = _plot_cluster_feature_figure
+        else:
+            feature_columns = _resolve_numeric_features(feature_df, feature_columns)
+            plotter = _plot_cluster_feature_enrichment_figure
+    else:
+        feature_columns = list(feature_columns)
+        missing = [column for column in feature_columns if column not in feature_df]
+        if missing:
+            raise ValueError(f"Feature columns not found: {missing}")
+        if all(_is_binary_feature(feature_df[column]) for column in feature_columns):
+            plotter = _plot_cluster_feature_figure
+        else:
+            feature_columns = _resolve_numeric_features(feature_df, feature_columns)
+            plotter = _plot_cluster_feature_enrichment_figure
+
     cluster_ids = pd.unique(labels[~pd.isna(labels)])
     if len(cluster_ids) == 0:
         raise ValueError("labels must contain at least one cluster.")
 
     return {
-        cluster_id: _plot_cluster_feature_figure(
+        cluster_id: plotter(
             x, y, labels, feature_df, feature_columns, cluster_id,
             top_n, figsize, point_size, alpha,
         )
