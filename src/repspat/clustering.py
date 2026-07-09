@@ -19,15 +19,10 @@ def _spatial_neighbors(*args, **kwargs):
         return sq.gr.spatial_neighbors(*args, **kwargs)
 
 
-def _resolve_hac_linkage(linkage):
-    if linkage is None or linkage == "auto":
-        return "ward"
-
+def _validate_hac_linkage(linkage):
     normalized = str(linkage).lower()
-    if normalized == "ward.d2":
-        normalized = "ward"
     if normalized not in _ALLOWED_HAC_LINKAGES:
-        allowed = sorted(_ALLOWED_HAC_LINKAGES | {"auto", "ward.D2"})
+        allowed = sorted(_ALLOWED_HAC_LINKAGES)
         raise ValueError(f"linkage must be one of: {allowed}")
     return normalized
 
@@ -36,10 +31,10 @@ def _hac_model_and_input(
     adata,
     n_clusters,
     connectivity,
-    linkage="auto",
+    linkage="ward",
     compute_distances=False,
 ):
-    linkage = _resolve_hac_linkage(linkage)
+    linkage = _validate_hac_linkage(linkage)
     X = _feature_array(adata)
     model = AgglomerativeClustering(
         n_clusters=n_clusters,
@@ -56,7 +51,7 @@ def spatial_silhouette_analysis(
     adata,
     n_neighbors_list=[6,8],
     n_clusters_range=range(4,9),
-    linkage="auto",
+    linkage="ward",
 ):
     results = []
 
@@ -170,7 +165,7 @@ def create_blocks(adata, knn: int, region_key: str = "repspat_region",
 def spatial_constrained_hac(adata, n_clusters: int = 7, n_neighs: int = 8,
                             coord_type: str = "generic", delaunay: bool = False,
                             region_key: str = "repspat_region",
-                            linkage: str = "auto",
+                            linkage: str = "ward",
 ):
     _spatial_neighbors(
         adata,

@@ -187,12 +187,11 @@ def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypat
     assert model.kwargs["linkage"] == "ward"
 
 
-def test_spatial_constrained_hac_accepts_ward_d2_alias(monkeypatch):
+def test_validate_hac_linkage_rejects_unknown_linkage():
     import repspat.clustering as clustering
 
-    monkeypatch.setattr(clustering, "_spatial_neighbors", fake_spatial_neighbors)
-
-    assert clustering._resolve_hac_linkage("ward.D2") == "ward"
+    with pytest.raises(ValueError, match="linkage must be one of"):
+        clustering._validate_hac_linkage("auto")
 
 
 def test_sample_data_converts_spatial_dataframe_to_numpy():

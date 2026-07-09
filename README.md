@@ -68,7 +68,6 @@ results = spatial_silhouette_analysis(
     sample,
     n_neighbors_list=[6, 8],
     n_clusters_range=range(4, 9),
-    linkage="auto",
 )
 #    n_neighbors  n_clusters linkage  avg_silhouette
 # 0            6           4    ward        0.136721
@@ -125,11 +124,11 @@ See `example.ipynb` for a full walkthrough on a TNBC dataset.
 ### `SampleData(adata, sample_column=None, sample_name=None, *, metric, layer=None, cell_type_column="mm")`
 Loads and optionally subsets an AnnData object for one sample. Computes the feature matrix, spatial coordinates, and pairwise distance matrix using the required `metric` value. Pass `layer` to use an existing AnnData layer, such as a pre-thresholded binary matrix, instead of `adata.X`. Distances are stored in `adata.obsp["repspat_distances"]`.
 
-### `spatial_silhouette_analysis(adata, n_neighbors_list, n_clusters_range, linkage="auto")`
-Returns a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` combinations and stores it in `adata.uns["repspat_silhouette"]`. Use this to pick clustering params. `linkage` can be `"auto"`, `"ward"`, `"ward.D2"`, `"single"`, `"complete"`, or `"average"`.
+### `spatial_silhouette_analysis(adata, n_neighbors_list, n_clusters_range, linkage="ward")`
+Returns a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` combinations and stores it in `adata.uns["repspat_silhouette"]`. Use this to pick clustering params. `linkage` can be `"ward"`, `"single"`, `"complete"`, or `"average"`.
 
-### `spatial_constrained_hac(adata, n_clusters, n_neighs, coord_type, delaunay, linkage="auto")`
-HAC with a spatial connectivity constraint. Stores labels in `adata.obs["repspat_region"]` and returns `(labels, adata, model)`. Clustering always uses the selected feature matrix from `SampleData`; `metric` controls the stored distance matrix used by silhouette and downstream tests. `linkage="auto"` uses Ward.
+### `spatial_constrained_hac(adata, n_clusters, n_neighs, coord_type, delaunay, linkage="ward")`
+HAC with a spatial connectivity constraint. Stores labels in `adata.obs["repspat_region"]` and returns `(labels, adata, model)`. Clustering always uses the selected feature matrix from `SampleData`; `metric` controls the stored distance matrix used by silhouette and downstream tests. Set `linkage` to `"single"`, `"complete"`, or `"average"` when needed.
 
 ### `create_blocks(adata, knn)`
 Splits regions into KMeans blocks for block permutation testing and stores block IDs in `adata.obs["repspat_polygon_id"]`.
