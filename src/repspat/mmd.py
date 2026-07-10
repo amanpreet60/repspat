@@ -81,6 +81,20 @@ def two_sample_mmd(sample1_idx, sample2_idx, dist_matrix, patient_data,
     return {"obs_mmd_sq": obs, "p_value": p_val, "null_dist": null}
 
 
+def _caller_adata_name(adata):
+    import inspect
+
+    frame = inspect.currentframe()
+    caller = frame.f_back.f_back if frame and frame.f_back else None
+    if caller is None:
+        return "adata"
+
+    for name, value in caller.f_locals.items():
+        if value is adata:
+            return name
+    return "adata"
+
+
 def multiple_comparison(adata, kernel="Gaussian", kernel_param=1.0, nperm=200,
                         adj_p="BH", region_key="repspat_region",
                         polygon_key="repspat_polygon_id",
@@ -125,5 +139,9 @@ def multiple_comparison(adata, kernel="Gaussian", kernel_param=1.0, nperm=200,
         raise ValueError(f"adj_p must be one of: {list(method_map.keys())}")
     df["adj_p"] = multipletests(df["p_value"], method=method_map[adj_p])[1]
     adata.uns["repspat_mmd_results"] = df
+    print(
+        "MMD results are stored in "
+        f'{_caller_adata_name(adata)}.uns["repspat_mmd_results"]'
+    )
     
-    return df
+    return adata

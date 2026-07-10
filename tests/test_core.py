@@ -212,6 +212,41 @@ def test_compute_mmd_sq_df_rejects_unknown_kernel():
         compute_mmd_sq_df(["a"], ["a"], dist, kernel="linear")
 
 
+def test_multiple_comparison_stores_results_and_returns_adata(monkeypatch, capsys):
+    from repspat import compute_distances
+    import repspat.mmd as mmd
+
+    adata = compute_distances(
+        make_three_cell_binary_sample(), layer="binary", metric="jaccard"
+    )
+    adata.obs["repspat_region"] = pd.Series(
+        [1, 1, 2], index=adata.obs_names
+    ).astype("category")
+    adata.obs["repspat_polygon_id"] = [1, 1, 1]
+
+    def fake_two_sample_mmd(*args, **kwargs):
+        return {
+            "obs_mmd_sq": 0.25,
+            "p_value": 0.5,
+            "null_dist": np.array([0.1, 0.2]),
+        }
+
+    monkeypatch.setattr(mmd, "two_sample_mmd", fake_two_sample_mmd)
+
+    returned = mmd.multiple_comparison(adata, kernel="IMQ")
+    captured = capsys.readouterr()
+
+    assert returned is adata
+    assert (
+        'MMD results are stored in adata.uns["repspat_mmd_results"]'
+        in captured.out
+    )
+    results = adata.uns["repspat_mmd_results"]
+    assert results.loc[0, "obs_mmd_sq"] == pytest.approx(0.25)
+    assert results.loc[0, "p_value"] == pytest.approx(0.5)
+    assert results.loc[0, "adj_p"] == pytest.approx(0.5)
+
+
 def test_pairwise_results_to_matrix_links_non_significant_pairs():
     from repspat.visualization import pairwise_results_to_matrix
 

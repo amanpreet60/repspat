@@ -107,10 +107,11 @@ cluster_figures = plot_cluster_feature_presence(adata, top_n=10)
 
 ```python
 adata = create_blocks(adata, knn=8)
-results_df = multiple_comparison(adata, kernel="IMQ")
+adata = multiple_comparison(adata, kernel="IMQ")
 
 # pairs that are not significantly different
-print(results_df[results_df["adj_p"] >= 0.05])
+results = adata.uns["repspat_mmd_results"]
+print(results[results["adj_p"] >= 0.05])
 ```
 
 ### Similarity network
@@ -139,7 +140,7 @@ Splits regions into KMeans blocks for block permutation testing, stores block ID
 MMD² between two groups with a permutation null. Returns observed statistic, null distribution, and p-value.
 
 ### `multiple_comparison(adata, kernel, kernel_param, nperm, adj_p)`
-Pairwise MMD across all cluster pairs. Reads regions, block IDs, and distances from AnnData. Stores results in `adata.uns["repspat_mmd_results"]`. `adj_p` can be `"BH"`, `"bonferroni"`, or `"holm"`.
+Pairwise MMD across all cluster pairs. Reads regions, block IDs, and distances from AnnData. Stores results in `adata.uns["repspat_mmd_results"]`, prints that location, and returns the same `adata`. `adj_p` can be `"BH"`, `"bonferroni"`, or `"holm"`.
 
 ### `plot_spatial_clusters(adata)`
 Scatter plot colored by `adata.obs["repspat_region"]`.
