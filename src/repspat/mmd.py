@@ -96,18 +96,18 @@ def _caller_adata_name(adata):
 
 
 def multiple_comparison(adata, kernel="Gaussian", kernel_param=1.0, nperm=200,
-                        adj_p="BH", region_key="repspat_region",
-                        polygon_key="repspat_polygon_id",
+                        adj_p="BH", region_key="labels",
+                        block_key="repspat_block_id",
                         distance_key="repspat_distances"):
     """Pairwise two-sample MMD test with multiple testing correction."""
-    for key in (region_key, polygon_key):
+    for key in (region_key, block_key):
         if key not in adata.obs:
             raise KeyError(f"'{key}' not found in adata.obs.")
     if distance_key not in adata.obsp:
         raise KeyError(f"'{distance_key}' not found in adata.obsp.")
 
-    patient_data = adata.obs[[region_key, polygon_key]].rename(
-        columns={region_key: "region", polygon_key: "polygon_id"}
+    patient_data = adata.obs[[region_key, block_key]].rename(
+        columns={region_key: "region", block_key: "polygon_id"}
     ).copy()
     dist_matrix = pd.DataFrame(
         _as_array(adata.obsp[distance_key]),

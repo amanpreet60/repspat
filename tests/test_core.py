@@ -96,7 +96,7 @@ def fake_spatial_neighbors(adata, **kwargs):
     )
 
 
-def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypatch):
+def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypatch, capsys):
     from repspat import compute_distances
     import repspat.clustering as clustering
 
@@ -108,6 +108,7 @@ def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypat
     class FakeAgglomerativeClustering:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+            captured["model_kwargs"] = kwargs
 
         def fit_predict(self, X):
             captured["X"] = np.asarray(X)
@@ -116,12 +117,14 @@ def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypat
     monkeypatch.setattr(clustering, "_spatial_neighbors", fake_spatial_neighbors)
     monkeypatch.setattr(clustering, "AgglomerativeClustering", FakeAgglomerativeClustering)
 
-    labels, clustered_adata, model = clustering.spatial_constrained_hac(
+    clustered_adata = clustering.spatial_constrained_hac(
         adata,
         n_clusters=2,
         n_neighs=1,
         linkage="ward",
     )
+    captured_output = capsys.readouterr()
+    labels = clustered_adata.obs["labels"].astype(int).to_numpy()
 
     np.testing.assert_array_equal(
         captured["X"],
@@ -134,12 +137,18 @@ def test_spatial_constrained_hac_uses_selected_feature_layer_with_ward(monkeypat
         ),
     )
     np.testing.assert_array_equal(labels, np.array([1, 2, 2]))
+    assert clustered_adata is adata
+    assert (
+        'HAC labels are stored in adata.obs["labels"]'
+        in captured_output.out
+    )
+    assert "repspat_hac_model" not in clustered_adata.uns
     assert clustered_adata.uns["repspat_hac"]["layer"] == "binary"
     assert clustered_adata.uns["repspat_hac"]["metric"] == "jaccard"
     assert clustered_adata.uns["repspat_hac"]["linkage"] == "ward"
-    assert model.kwargs["n_clusters"] == 2
-    assert model.kwargs["metric"] == "euclidean"
-    assert model.kwargs["linkage"] == "ward"
+    assert captured["model_kwargs"]["n_clusters"] == 2
+    assert captured["model_kwargs"]["metric"] == "euclidean"
+    assert captured["model_kwargs"]["linkage"] == "ward"
 
 
 def test_spatial_silhouette_analysis_result_omits_linkage_column(monkeypatch, capsys):
@@ -219,10 +228,10 @@ def test_multiple_comparison_stores_results_and_returns_adata(monkeypatch, capsy
     adata = compute_distances(
         make_three_cell_binary_sample(), layer="binary", metric="jaccard"
     )
-    adata.obs["repspat_region"] = pd.Series(
+    adata.obs["labels"] = pd.Series(
         [1, 1, 2], index=adata.obs_names
     ).astype("category")
-    adata.obs["repspat_polygon_id"] = [1, 1, 1]
+    adata.obs["repspat_block_id"] = [1, 1, 1]
 
     def fake_two_sample_mmd(*args, **kwargs):
         return {
@@ -282,7 +291,7 @@ def test_plot_cluster_feature_presence_creates_ranked_plot_per_cluster():
                 [1, 1, 1, 1.0],
             ]
         ),
-        obs=pd.DataFrame({"repspat_region": [1, 1, 2, 2, 2]}),
+        obs=pd.DataFrame({"labels": [1, 1, 2, 2, 2]}),
     )
     adata.var_names = ["marker_a", "marker_b", "marker_c", "continuous"]
     adata.obsm["spatial"] = np.array(
@@ -325,7 +334,7 @@ def test_plot_cluster_feature_presence_falls_back_to_enrichment_for_continuous_d
                 [1000.0, 0.4, 4.0],
             ]
         ),
-        obs=pd.DataFrame({"repspat_region": [1, 1, 2, 2, 2]}),
+        obs=pd.DataFrame({"labels": [1, 1, 2, 2, 2]}),
     )
     adata.var_names = ["large_scale_marker", "cluster_marker", "other_marker"]
     adata.obsm["spatial"] = np.array(
@@ -357,7 +366,7 @@ def test_plot_spatial_clusters_reads_anndata_slots():
     anndata = pytest.importorskip("anndata")
     adata = anndata.AnnData(
         X=np.ones((3, 2)),
-        obs=pd.DataFrame({"repspat_region": [1, 1, 2]}),
+        obs=pd.DataFrame({"labels": [1, 1, 2]}),
     )
     adata.obsm["spatial"] = np.array([[0, 0], [1, 1], [2, 0]])
 
@@ -375,7 +384,7 @@ def test_plot_spatial_clusters_accepts_dataframe_spatial_coords():
     anndata = pytest.importorskip("anndata")
     adata = anndata.AnnData(
         X=np.ones((3, 2)),
-        obs=pd.DataFrame({"repspat_region": [1, 1, 2]}),
+        obs=pd.DataFrame({"labels": [1, 1, 2]}),
     )
     adata.obsm["spatial"] = pd.DataFrame(
         {"centroidX": [0, 1, 2], "centroidY": [0, 1, 0]},
@@ -388,13 +397,13 @@ def test_plot_spatial_clusters_accepts_dataframe_spatial_coords():
     plt.close(fig)
 
 
-def test_create_blocks_writes_polygon_ids_to_adata():
+def test_create_blocks_writes_block_ids_to_adata():
     from repspat import compute_distances, create_blocks
 
     anndata = pytest.importorskip("anndata")
     adata = anndata.AnnData(
         X=np.array([[0, 0], [0, 1], [5, 5], [5, 6]]),
-        obs=pd.DataFrame({"repspat_region": [1, 1, 2, 2]}),
+        obs=pd.DataFrame({"labels": [1, 1, 2, 2]}),
     )
     adata.var_names = ["marker_a", "marker_b"]
     adata.layers["features"] = adata.X.copy()
@@ -403,8 +412,8 @@ def test_create_blocks_writes_polygon_ids_to_adata():
     returned = create_blocks(adata, knn=8)
 
     assert returned is adata
-    assert "repspat_polygon_id" in adata.obs
-    assert adata.obs["repspat_polygon_id"].tolist() == [1, 1, 1, 1]
+    assert "repspat_block_id" in adata.obs
+    assert adata.obs["repspat_block_id"].tolist() == [1, 1, 1, 1]
 
 
 def test_pairwise_results_to_matrix_reads_anndata_results():

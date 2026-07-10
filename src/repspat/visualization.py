@@ -10,7 +10,7 @@ def _spatial_xy(adata):
         return coords.iloc[:, 0], coords.iloc[:, 1]
     return coords[:, 0], coords[:, 1]
 
-def plot_spatial_clusters(adata, label_key="repspat_region", figsize=(4, 4),
+def plot_spatial_clusters(adata, label_key="labels", figsize=(4, 4),
                           point_size=10, alpha=1.0,
                           title="Spatial Plot of Cells with Cluster Colors",
                           show_legend=True):
@@ -213,7 +213,7 @@ def plot_cluster_feature_presence(
     figsize=(8, 3),
     point_size=2,
     alpha=1.0,
-    label_key="repspat_region",
+    label_key="labels",
 ):
     """Plot each cluster beside binary presence or continuous enrichment.
 

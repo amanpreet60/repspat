@@ -78,13 +78,13 @@ adata.uns["silhouette_scores"]
 ### Cluster cells
 
 ```python
-labels, adata, model = spatial_constrained_hac(
+adata = spatial_constrained_hac(
     adata,
     n_clusters=7,
     n_neighs=8,
     linkage="ward",
 )
-# labels are also stored in adata.obs["repspat_region"]
+# labels are stored in adata.obs["labels"]
 ```
 
 ### Plot
@@ -131,10 +131,10 @@ Computes pairwise distances from the required AnnData layer, stores them in `ada
 Stores a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` combinations in `adata.uns["silhouette_scores"]` and returns the same `adata`. Use this to pick clustering params. `linkage` can be `"ward"`, `"single"`, `"complete"`, or `"average"`.
 
 ### `spatial_constrained_hac(adata, n_clusters, n_neighs, coord_type, delaunay, linkage="ward")`
-HAC with a spatial connectivity constraint. Stores labels in `adata.obs["repspat_region"]` and returns `(labels, adata, model)`. Clustering uses the active feature layer recorded by `compute_distances`; `metric` controls the stored distance matrix used by silhouette and downstream tests. Set `linkage` to `"single"`, `"complete"`, or `"average"` when needed.
+HAC with a spatial connectivity constraint. Stores labels in `adata.obs["labels"]`, prints the storage location, and returns the same `adata`. Clustering uses the active feature layer recorded by `compute_distances`; `metric` controls the stored distance matrix used by silhouette and downstream tests. Set `linkage` to `"single"`, `"complete"`, or `"average"` when needed.
 
 ### `create_blocks(adata, knn)`
-Splits regions into KMeans blocks for block permutation testing, stores block IDs in `adata.obs["repspat_polygon_id"]`, and returns the same `adata`.
+Splits regions into KMeans blocks for block permutation testing, stores block IDs in `adata.obs["repspat_block_id"]`, and returns the same `adata`.
 
 ### `two_sample_mmd(sample1_idx, sample2_idx, dist_matrix, patient_data, kernel, kernel_param, nperm)`
 MMD² between two groups with a permutation null. Returns observed statistic, null distribution, and p-value.
@@ -143,7 +143,7 @@ MMD² between two groups with a permutation null. Returns observed statistic, nu
 Pairwise MMD across all cluster pairs. Reads regions, block IDs, and distances from AnnData. Stores results in `adata.uns["repspat_mmd_results"]`, prints that location, and returns the same `adata`. `adj_p` can be `"BH"`, `"bonferroni"`, or `"holm"`.
 
 ### `plot_spatial_clusters(adata)`
-Scatter plot colored by `adata.obs["repspat_region"]`.
+Scatter plot colored by `adata.obs["labels"]`.
 
 ### `plot_cluster_feature_presence(adata, top_n)`
 Creates a spatial highlight and top feature chart for every cluster. Uses binary-feature prevalence when binary features are available, otherwise falls back to cluster-vs-rest standardized enrichment for numeric features.

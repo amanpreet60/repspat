@@ -149,8 +149,8 @@ def spatial_silhouette_analysis(
     return adata
 
 
-def create_blocks(adata, knn: int, region_key: str = "repspat_region",
-                  polygon_key: str = "repspat_polygon_id"):
+def create_blocks(adata, knn: int, region_key: str = "labels",
+                  block_key: str = "repspat_block_id"):
     """Create KMeans blocks within each region."""
     if region_key not in adata.obs:
         raise KeyError(f"'{region_key}' not found in adata.obs.")
@@ -160,7 +160,7 @@ def create_blocks(adata, knn: int, region_key: str = "repspat_region",
         index=adata.obs_names,
         columns=adata.var_names,
     )
-    polygon_ids = pd.Series(index=adata.obs_names, dtype="Int64")
+    block_ids = pd.Series(index=adata.obs_names, dtype="Int64")
 
     for region in adata.obs[region_key].unique():
         obs_names = adata.obs_names[adata.obs[region_key] == region]
@@ -168,20 +168,20 @@ def create_blocks(adata, knn: int, region_key: str = "repspat_region",
         num_blks = len(df) // knn
         num_blks = 1 if num_blks == 0 or num_blks >= len(df.drop_duplicates()) else num_blks
         if num_blks == 1:
-            polygon_ids.loc[obs_names] = 1
+            block_ids.loc[obs_names] = 1
         else:
-            polygon_ids.loc[obs_names] = (
+            block_ids.loc[obs_names] = (
                 KMeans(n_clusters=num_blks, n_init=10, random_state=0).fit(df).labels_ + 1
             )
 
-    adata.obs[polygon_key] = polygon_ids
-    adata.uns.setdefault("repspat", {})["polygon_key"] = polygon_key
+    adata.obs[block_key] = block_ids
+    adata.uns.setdefault("repspat", {})["block_key"] = block_key
     return adata
 
 
 def spatial_constrained_hac(adata, n_clusters: int = 7, n_neighs: int = 8,
                             coord_type: str = "generic", delaunay: bool = False,
-                            region_key: str = "repspat_region",
+                            region_key: str = "labels",
                             linkage: str = "ward",
 ):
     _spatial_neighbors(
@@ -214,4 +214,10 @@ def spatial_constrained_hac(adata, n_clusters: int = 7, n_neighs: int = 8,
         "metric": repspat_settings.get("metric"),
     }
 
-    return labels, adata, model
+    adata_name = _caller_adata_name(adata)
+    print(
+        "HAC labels are stored in "
+        f'{adata_name}.obs["{region_key}"]'
+    )
+
+    return adata
