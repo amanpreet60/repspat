@@ -397,7 +397,7 @@ def test_plot_spatial_clusters_accepts_dataframe_spatial_coords():
     plt.close(fig)
 
 
-def test_create_blocks_writes_block_ids_to_adata():
+def test_create_blocks_writes_block_ids_to_adata(capsys):
     from repspat import compute_distances, create_blocks
 
     anndata = pytest.importorskip("anndata")
@@ -410,10 +410,15 @@ def test_create_blocks_writes_block_ids_to_adata():
     adata = compute_distances(adata, layer="features", metric="euclidean")
 
     returned = create_blocks(adata, knn=8)
+    captured = capsys.readouterr()
 
     assert returned is adata
     assert "repspat_block_id" in adata.obs
     assert adata.obs["repspat_block_id"].tolist() == [1, 1, 1, 1]
+    assert (
+        'Block IDs are stored in adata.obs["repspat_block_id"]'
+        in captured.out
+    )
 
 
 def test_pairwise_results_to_matrix_reads_anndata_results():

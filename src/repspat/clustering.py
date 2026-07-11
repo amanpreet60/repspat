@@ -176,6 +176,10 @@ def create_blocks(adata, knn: int, region_key: str = "labels",
 
     adata.obs[block_key] = block_ids
     adata.uns.setdefault("repspat", {})["block_key"] = block_key
+    print(
+        "Block IDs are stored in "
+        f'{_caller_adata_name(adata)}.obs["{block_key}"]'
+    )
     return adata
 
 

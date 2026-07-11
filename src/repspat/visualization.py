@@ -192,11 +192,15 @@ def _plot_cluster_feature_enrichment_figure(
         plot_scores.index, plot_scores.values, color="tab:green"
     )
     feature_ax.axvline(0, color="black", linewidth=0.8, alpha=0.4)
-    feature_ax.bar_label(
-        bars,
-        labels=[f"{value:.3g}" for value in plot_scores.values],
-        padding=3,
-    )
+    for bar, value in zip(bars, plot_scores.values):
+        label_x = value if value >= 0 else 0
+        feature_ax.text(
+            label_x, bar.get_y() + bar.get_height() / 2,
+            f" {value:.3g}", va="center", ha="left", fontsize=9,
+        )
+    x_min = min(plot_scores.min(), 0)
+    x_max = max(plot_scores.max(), 0)
+    feature_ax.set_xlim(x_min, x_max + (x_max - x_min) * 0.2 + 0.05)
     feature_ax.set(
         xlabel="Cluster-vs-rest standardized enrichment",
         title=f"Top {len(scores)} enriched features",
@@ -277,15 +281,17 @@ def plot_cluster_feature_presence(
     }
 
 
-def pairwise_results_to_matrix(df, plot=True):
-    if hasattr(df, "uns"):
-        if "repspat_mmd_results" not in df.uns:
+def pairwise_results_to_matrix(adata, plot=True, alpha=0.05):
+    if hasattr(adata, "uns"):
+        if "repspat_mmd_results" not in adata.uns:
             raise KeyError("'repspat_mmd_results' not found in adata.uns.")
-        df = df.uns["repspat_mmd_results"]
+        df = adata.uns["repspat_mmd_results"]
+    else:
+        df = adata
 
-    # Link clusters that are NOT significantly different (adj_p >= 0.05 = similar spatial distributions)
+    # Link clusters that are NOT significantly different (adj_p >= alpha = similar spatial distributions)
     df = df.copy()
-    df['link'] = (df['adj_p'] >= 0.05).astype(int)
+    df['link'] = (df['adj_p'] >= alpha).astype(int)
     
     # Nodes and edges
     all_nodes = pd.unique(df[['region_1','region_2']].values.ravel())

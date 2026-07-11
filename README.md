@@ -134,7 +134,7 @@ Stores a DataFrame of silhouette scores across all `(n_neighbors, n_clusters)` c
 HAC with a spatial connectivity constraint. Stores labels in `adata.obs["labels"]`, prints the storage location, and returns the same `adata`. Clustering uses the active feature layer recorded by `compute_distances`; `metric` controls the stored distance matrix used by silhouette and downstream tests. Set `linkage` to `"single"`, `"complete"`, or `"average"` when needed.
 
 ### `create_blocks(adata, knn)`
-Splits regions into KMeans blocks for block permutation testing, stores block IDs in `adata.obs["repspat_block_id"]`, and returns the same `adata`.
+Splits regions into KMeans blocks for block permutation testing, stores block IDs in `adata.obs["repspat_block_id"]`, prints that location, and returns the same `adata`.
 
 ### `two_sample_mmd(sample1_idx, sample2_idx, dist_matrix, patient_data, kernel, kernel_param, nperm)`
 MMD² between two groups with a permutation null. Returns observed statistic, null distribution, and p-value.
@@ -148,8 +148,8 @@ Scatter plot colored by `adata.obs["labels"]`.
 ### `plot_cluster_feature_presence(adata, top_n)`
 Creates a spatial highlight and top feature chart for every cluster. Uses binary-feature prevalence when binary features are available, otherwise falls back to cluster-vs-rest standardized enrichment for numeric features.
 
-### `pairwise_results_to_matrix(adata, plot)`
-Builds an adjacency matrix and network graph from `adata.uns["repspat_mmd_results"]`. Edges connect clusters that are not significantly different.
+### `pairwise_results_to_matrix(adata, plot, alpha=0.05)`
+Builds an adjacency matrix and network graph from `adata.uns["repspat_mmd_results"]`. Edges connect clusters whose adjusted p-value is at least `alpha` (not significantly different).
 
 ## Requirements
 
