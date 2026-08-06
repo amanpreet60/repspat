@@ -202,8 +202,8 @@ def _plot_cluster_feature_enrichment_figure(
     x_max = max(plot_scores.max(), 0)
     feature_ax.set_xlim(x_min, x_max + (x_max - x_min) * 0.2 + 0.05)
     feature_ax.set(
-        xlabel="Cluster-vs-rest standardized enrichment",
-        title=f"Top {len(scores)} enriched features",
+        xlabel="Mean z-score difference (cluster − rest)",
+        title=f"Top {len(scores)} cluster-defining features",
     )
     feature_ax.grid(axis="x", alpha=0.2)
     fig.tight_layout()

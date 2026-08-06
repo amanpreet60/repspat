@@ -146,7 +146,7 @@ Pairwise MMD across all cluster pairs. Reads regions, block IDs, and distances f
 Scatter plot colored by `adata.obs["labels"]`.
 
 ### `plot_cluster_feature_presence(adata, top_n)`
-Creates a spatial highlight and top feature chart for every cluster. Uses binary-feature prevalence when binary features are available, otherwise falls back to cluster-vs-rest standardized enrichment for numeric features.
+Creates a spatial highlight and top feature chart for every cluster. Uses binary-feature prevalence when binary features are available, otherwise falls back to mean z-score difference (cluster − rest) for numeric features.
 
 ### `pairwise_results_to_matrix(adata, plot, alpha=0.05)`
 Builds an adjacency matrix and network graph from `adata.uns["repspat_mmd_results"]`. Edges connect clusters whose adjusted p-value is at least `alpha` (not significantly different).
